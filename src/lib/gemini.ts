@@ -5,6 +5,10 @@ export async function generateBriefing(lead: Lead): Promise<BriefingResult> {
   const keys = getApiKeys();
   const apiKey = keys.gemini;
 
+  if (!apiKey) {
+    throw new Error('Chave da API Gemini não configurada. Vá em Configurações (ícone ⚙️) para adicionar sua chave.');
+  }
+
   const prompt = `Você é um assistente de vendas especializado em investimentos imobiliários de short-stay da Seazone, empresa líder em gestão de imóveis de temporada no Brasil.
 
 Gere um briefing completo para preparar um closer (vendedor) antes de uma reunião com um lead/investidor. O briefing deve ser em português brasileiro.

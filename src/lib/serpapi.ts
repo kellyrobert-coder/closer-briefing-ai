@@ -5,6 +5,10 @@ export async function searchWeb(query: string): Promise<WebResearchResult[]> {
   const keys = getApiKeys();
   const apiKey = keys.serpapi;
 
+  if (!apiKey) {
+    throw new Error('Chave da SerpAPI não configurada. Vá em Configurações (ícone ⚙️) para adicionar sua chave.');
+  }
+
   // Use allorigins as CORS proxy for SerpAPI
   const serpUrl = `https://serpapi.com/search.json?q=${encodeURIComponent(query)}&hl=pt-br&gl=br&num=5&api_key=${apiKey}`;
   const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(serpUrl)}`;
