@@ -75,37 +75,54 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown, sem backticks, sem texto 
   const data = await response.json();
 
   // Gemini 2.5 Flash (thinking model) may return multiple parts:
-  // parts[0] = thinking/reasoning (thought: true), parts[1] = actual response
-  // We want the last non-empty text part that looks like JSON
+  // parts[0] = thinking/reasoning (thought: true), parts[1+] = actual response
   const parts: { text?: string; thought?: boolean }[] =
     data.candidates?.[0]?.content?.parts ?? [];
 
-  // Find the actual response: prefer last non-thought part, then any part with '{'
-  let text =
-    [...parts].reverse().find((p) => !p.thought && p.text?.includes('{'))?.text ??
-    [...parts].reverse().find((p) => p.text)?.text ??
-    '';
+  console.log('[Gemini] parts count:', parts.length, parts.map((p, i) => `[${i}] thought=${!!p.thought} len=${p.text?.length ?? 0}`));
 
-  if (!text) {
-    throw new Error('Resposta vazia do Gemini. Verifique sua chave de API nas Configurações.');
+  // Collect ALL non-thought text parts (some models split JSON across parts)
+  const responseParts = parts.filter((p) => !p.thought && p.text);
+  // Fallback: if nothing non-thought, use all parts
+  const candidates = responseParts.length > 0 ? responseParts : parts.filter((p) => p.text);
+
+  // Try each candidate part, starting from the last (most likely to be the answer)
+  for (const part of [...candidates].reverse()) {
+    const raw = part.text ?? '';
+    if (!raw.includes('{')) continue;
+
+    // Strip markdown fences
+    let cleaned = raw
+      .replace(/```json\s*/gi, '')
+      .replace(/```\s*/g, '')
+      .trim();
+
+    // Extract JSON object
+    if (!cleaned.startsWith('{')) {
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (match) cleaned = match[0];
+    }
+
+    try {
+      return JSON.parse(cleaned) as BriefingResult;
+    } catch {
+      console.warn('[Gemini] Failed to parse part, trying next. Preview:', cleaned.slice(0, 200));
+    }
   }
 
-  // Strip markdown fences if present
-  let cleaned = text
-    .replace(/```json\s*/gi, '')
-    .replace(/```\s*/g, '')
-    .trim();
-
-  // Extract first JSON object if surrounded by text
-  if (!cleaned.startsWith('{')) {
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (match) cleaned = match[0];
+  // Last resort: concatenate all non-thought text and try parsing
+  const allText = candidates.map((p) => p.text ?? '').join('');
+  if (allText.includes('{')) {
+    const match = allText.match(/\{[\s\S]*\}/);
+    if (match) {
+      try {
+        return JSON.parse(match[0]) as BriefingResult;
+      } catch {
+        // fall through
+      }
+    }
   }
 
-  try {
-    return JSON.parse(cleaned) as BriefingResult;
-  } catch {
-    console.error('Gemini raw response:', text.slice(0, 500));
-    throw new Error('Erro ao interpretar resposta do Gemini. Tente novamente.');
-  }
+  console.error('[Gemini] Could not parse any part. Raw parts:', JSON.stringify(parts.map(p => ({ thought: p.thought, text: p.text?.slice(0, 300) }))));
+  throw new Error('Erro ao interpretar resposta do Gemini. Tente novamente.');
 }
