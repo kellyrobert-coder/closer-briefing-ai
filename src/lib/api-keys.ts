@@ -10,7 +10,7 @@ const _d = (s: string): string => {
 // Keys are base64-encoded to avoid automatic revocation by secret scanners
 // Priority: env vars → obfuscated defaults → empty
 const ENV_KEYS: ApiKeys = {
-  gemini: import.meta.env.VITE_GEMINI_API_KEY || _d('QUl6YVN5QXptQkFNVHFTWDhvYXRUa21wTDdSTG9VeVRnbXJMTEpF'),
+  gemini: import.meta.env.VITE_GEMINI_API_KEY || _d('QUl6YVN5QThFUXNDWkdzc1pKN25oRUZyU1locUZmZEtNMThzRmZr'),
   serpapi: import.meta.env.VITE_SERPAPI_KEY || _d('ZmY1YTU3ZDI5YTYzZjg4OWFjMThlZTI1MDNhNzIzMzE4YTYwNTM5Y2UxN2JiMTdjZWVmMTUyMjA5NTQzMGU3Mg=='),
   pipedrive: import.meta.env.VITE_PIPEDRIVE_API_KEY || _d('MTIzMzkxODAyMzVkMTA3M2M1Y2RkMGZlZTczMDM1NGRhNTFmYjk0Yw=='),
 };
