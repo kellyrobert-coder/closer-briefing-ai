@@ -2,10 +2,11 @@ import type { ApiKeys } from '../types/lead';
 
 const STORAGE_KEY = 'closer-briefing-api-keys';
 
-const DEFAULT_KEYS: ApiKeys = {
-  gemini: '',
-  serpapi: '',
-  pipedrive: '12339180235d1073c5cdd0fee730354da51fb94c',
+// Keys from .env (injected at build time by Vite — the .env file is in .gitignore)
+const ENV_KEYS: ApiKeys = {
+  gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
+  serpapi: import.meta.env.VITE_SERPAPI_KEY || '',
+  pipedrive: import.meta.env.VITE_PIPEDRIVE_API_KEY || '',
 };
 
 export function getApiKeys(): ApiKeys {
@@ -13,11 +14,15 @@ export function getApiKeys(): ApiKeys {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       const parsed = JSON.parse(stored);
-      // Merge with defaults so new fields (pipedrive) are included
-      return { ...DEFAULT_KEYS, ...parsed };
+      // Merge: localStorage overrides env, env overrides empty
+      return {
+        gemini: parsed.gemini || ENV_KEYS.gemini,
+        serpapi: parsed.serpapi || ENV_KEYS.serpapi,
+        pipedrive: parsed.pipedrive || ENV_KEYS.pipedrive,
+      };
     }
   } catch {}
-  return DEFAULT_KEYS;
+  return ENV_KEYS;
 }
 
 export function saveApiKeys(keys: ApiKeys): void {
