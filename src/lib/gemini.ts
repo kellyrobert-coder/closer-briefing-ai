@@ -9,6 +9,17 @@ export async function generateBriefing(lead: Lead): Promise<BriefingResult> {
     throw new Error('Chave da API Gemini não configurada. Vá em Configurações (ícone ⚙️) para adicionar sua chave.');
   }
 
+  const customFieldsText =
+    lead.allCustomFields && Object.keys(lead.allCustomFields).length > 0
+      ? Object.entries(lead.allCustomFields)
+          .filter(([, v]) => v)
+          .map(([k, v]) => `- ${k}: ${v}`)
+          .join('\n')
+      : '';
+
+  const notesText = lead.notesContent || 'Sem anotações registradas';
+  const historyText = lead.lostDealsHistory || 'Primeiro contato - sem histórico anterior';
+
   const prompt = `Você é um assistente de vendas especializado em investimentos imobiliários de short-stay da Seazone, empresa líder em gestão de imóveis de temporada no Brasil.
 
 Gere um briefing completo para preparar um closer (vendedor) antes de uma reunião com um lead/investidor. O briefing deve ser em português brasileiro.
@@ -33,6 +44,15 @@ DADOS DO LEAD:
 - Notas: ${lead.notes_count}
 - Etapa no Funil: ${lead.etapa}
 
+${customFieldsText ? `CAMPOS EXTRAS DO PIPEDRIVE:
+${customFieldsText}
+
+` : ''}ANOTAÇÕES DO DEAL (mais recentes primeiro):
+${notesText}
+
+HISTÓRICO COM A SEAZONE:
+${historyText}
+
 SOBRE A SEAZONE:
 - Gestão profissional de imóveis de temporada (short-stay)
 - Rentabilidade média de 8-12% ao ano
@@ -40,8 +60,12 @@ SOBRE A SEAZONE:
 - Modelo de gestão completa: da captação à manutenção
 - Escritórios em Florianópolis, São Paulo, e outras capitais
 
-IMPORTANTE: Se algum campo do lead estiver vazio, infere com base no contexto disponível.
-Responda EXCLUSIVAMENTE em JSON válido, sem markdown, sem backticks, sem texto antes ou depois do JSON, com esta estrutura exata:
+INSTRUÇÕES IMPORTANTES:
+- Se o lead veio da MIA (Morada AI), analise as informações de qualificação disponíveis
+- Se existem deals perdidos anteriores, analise por que foram perdidos e como abordar diferente desta vez
+- Inclua insights sobre o perfil do investidor baseado em TODAS as informações disponíveis
+- Se algum campo do lead estiver vazio, infere com base no contexto disponível
+- Responda EXCLUSIVAMENTE em JSON válido, sem markdown, sem backticks, sem texto antes ou depois do JSON, com esta estrutura exata:
 {
   "resumo": "Resumo executivo do lead em 2-3 frases",
   "pontos_chave": ["ponto 1", "ponto 2", "ponto 3", "ponto 4", "ponto 5"],

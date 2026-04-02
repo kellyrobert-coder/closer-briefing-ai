@@ -29,6 +29,9 @@ export interface Lead {
   negocio_criado_em: string;
   atualizado_em: string;
   score: number;
+  notesContent?: string;
+  lostDealsHistory?: string;
+  allCustomFields?: Record<string, string>;
 }
 
 export interface BriefingResult {

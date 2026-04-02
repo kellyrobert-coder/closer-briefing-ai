@@ -2,6 +2,9 @@ import type { Lead } from '../types/lead';
 
 const BASE = 'https://api.pipedrive.com/v1';
 
+// ─── Module-level cache for deal fields ────────────────────────────────────
+let dealFieldsCache: Map<string, DealField> | null = null;
+
 // ─── Custom field hash keys (from GET /v1/dealFields) ────────────────────────
 const F = {
   NOME_INVESTIDOR:   'd0ac708e265df3324f6c217f2f96526132479e3b',
@@ -75,6 +78,30 @@ const EMPREENDIMENTO: Record<string, string> = {
   '3533': 'Ponta das Canas Spot II', '3594': 'Rosa Sul Spot II', '3641': 'Foz Spot II',
   '4090': 'Canas Beach Spot',
 };
+
+// ─── Type definitions ─────────────────────────────────────────────────────────
+interface DealField {
+  id: number;
+  key: string;
+  name: string;
+  type: string;
+  options?: { id: number; label: string }[];
+}
+
+interface DealNote {
+  content: string;
+  addTime: string;
+  userName: string;
+}
+
+interface PersonDeal {
+  id: number;
+  title: string;
+  status: string;
+  lost_reason: string;
+  value: number;
+  add_time: string;
+}
 
 // ─── Type helpers ─────────────────────────────────────────────────────────────
 function enumVal(map: Record<string, string>, val: unknown): string {
@@ -212,6 +239,104 @@ function searchItemToLead(item: Record<string, any>): Lead {
   };
 }
 
+// ─── New helper functions ─────────────────────────────────────────────────────
+export async function fetchDealFields(apiToken: string): Promise<Map<string, DealField>> {
+  if (dealFieldsCache) {
+    return dealFieldsCache;
+  }
+
+  const url = `${BASE}/dealFields?limit=500&api_token=${apiToken}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Pipedrive dealFields API ${res.status}`);
+  const data = await res.json();
+  if (!data.success) throw new Error('Pipedrive dealFields: ' + (data.error || 'Erro'));
+
+  dealFieldsCache = new Map();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (data.data || []).forEach((field: any) => {
+    dealFieldsCache!.set(field.key, {
+      id: field.id,
+      key: field.key,
+      name: field.name,
+      type: field.field_type,
+      options: field.options || [],
+    });
+  });
+
+  return dealFieldsCache;
+}
+
+export async function fetchDealNotes(dealId: number, apiToken: string): Promise<DealNote[]> {
+  const url = `${BASE}/deals/${dealId}/notes?limit=50&sort=add_time%20DESC&api_token=${apiToken}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Pipedrive notes API ${res.status}`);
+  const data = await res.json();
+  if (!data.success) return [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data.data || []).map((note: any) => ({
+    content: (note.content || '').replace(/<[^>]*>/g, ''),
+    addTime: note.add_time || '',
+    userName: note.user?.name || 'Unknown',
+  }));
+}
+
+export async function fetchPersonDeals(personId: number, apiToken: string): Promise<PersonDeal[]> {
+  const url = `${BASE}/persons/${personId}/deals?status=all_not_deleted&limit=100&api_token=${apiToken}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Pipedrive person deals API ${res.status}`);
+  const data = await res.json();
+  if (!data.success) return [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data.data || []).map((deal: any) => ({
+    id: deal.id,
+    title: deal.title || '',
+    status: deal.status || '',
+    lost_reason: deal.lost_reason || '',
+    value: Number(deal.value) || 0,
+    add_time: deal.add_time || '',
+  }));
+}
+
+export async function fetchDealAllFields(dealId: number, apiToken: string): Promise<Record<string, string>> {
+  const url = `${BASE}/deals/${dealId}?api_token=${apiToken}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Pipedrive deal API ${res.status}`);
+  const data = await res.json();
+  if (!data.success) return {};
+
+  const dealData = data.data;
+  const fields = await fetchDealFields(apiToken);
+  const result: Record<string, string> = {};
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Object.entries(dealData).forEach(([key, value]: [string, any]) => {
+    const field = fields.get(key);
+    if (!field) return;
+
+    // Skip empty/null/zero values and nested objects
+    if (value === null || value === undefined || value === '' || value === '0') return;
+    if (typeof value === 'object') return;
+
+    let strValue = String(value).trim();
+    if (!strValue) return;
+
+    // Try to resolve enum fields
+    if (field.type === 'enum' && field.options && !isNaN(Number(value))) {
+      const numVal = Number(value);
+      const option = field.options.find((o) => o.id === numVal);
+      if (option) {
+        strValue = option.label;
+      }
+    }
+
+    result[field.name] = strValue;
+  });
+
+  return result;
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 export async function searchDeals(term: string, apiToken: string): Promise<Lead[]> {
   if (!term.trim()) return [];
@@ -227,13 +352,19 @@ export async function searchDeals(term: string, apiToken: string): Promise<Lead[
   return (data.data?.items || []).map((i: any) => searchItemToLead(i.item));
 }
 
-export async function fetchDeal(id: number, apiToken: string): Promise<Lead> {
+export async function fetchDeal(id: number, apiToken: string): Promise<Lead & { _rawPersonId?: number }> {
   const url = `${BASE}/deals/${id}?api_token=${apiToken}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Pipedrive API ${res.status}`);
   const data = await res.json();
   if (!data.success) throw new Error('Pipedrive: ' + (data.error || 'Erro'));
-  return dealToLead(data.data);
+  const lead = dealToLead(data.data);
+  // Attach raw person_id for later use
+  const personIdObj = data.data.person_id;
+  if (personIdObj && typeof personIdObj === 'object' && 'value' in personIdObj) {
+    (lead as any)._rawPersonId = personIdObj.value;
+  }
+  return lead;
 }
 
 export interface UpcomingMeeting {

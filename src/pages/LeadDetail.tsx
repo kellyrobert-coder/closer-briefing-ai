@@ -4,7 +4,7 @@ import Header from '../components/Header';
 import LeadInfoPanel from '../components/LeadInfoPanel';
 import BriefingPanel from '../components/BriefingPanel';
 import WebResearchPanel from '../components/WebResearchPanel';
-import { fetchDeal } from '../lib/pipedrive';
+import { fetchDeal, fetchDealNotes, fetchPersonDeals, fetchDealAllFields } from '../lib/pipedrive';
 import { getApiKeys } from '../lib/api-keys';
 import { lookupSeazoneClient, preloadSeazoneLookup } from '../lib/seazone-lookup';
 import type { SeazoneClientInfo } from '../lib/seazone-lookup';
@@ -34,16 +34,66 @@ export default function LeadDetail() {
     setCheckingCliente(false);
 
     fetchDeal(Number(id), apiToken)
-      .then((data) => {
-        setLead(data);
-        setLoading(false);
-        // Look up Seazone client status by email
-        if (data.e_mail) {
-          setCheckingCliente(true);
-          lookupSeazoneClient(data.e_mail).then((result) => {
-            setClienteSeazone(result);
-            setCheckingCliente(false);
+      .then(async (data) => {
+        // Fetch enriched data in parallel
+        try {
+          const [notes, allCustomFields] = await Promise.all([
+            fetchDealNotes(data.id, apiToken).catch(() => []),
+            fetchDealAllFields(data.id, apiToken).catch(() => ({})),
+          ]);
+
+          // Build notes content
+          const notesContent =
+            notes.length > 0
+              ? notes.map((n) => `${n.addTime} - ${n.userName}:\n${n.content}`).join('\n\n')
+              : undefined;
+
+          // Fetch person's other deals to build lost deals history
+          let lostDealsHistory: string | undefined;
+          const personId = (data as any)._rawPersonId;
+          if (personId) {
+            try {
+              const personDeals = await fetchPersonDeals(personId, apiToken);
+              const lostDeals = personDeals.filter((d) => d.status === 'lost' && d.id !== data.id);
+              if (lostDeals.length > 0) {
+                lostDealsHistory = lostDeals
+                  .map((d) => {
+                    const dateStr = d.add_time.split(' ')[0];
+                    return `Deal '${d.title}' perdido em ${dateStr}${d.lost_reason ? ` - Motivo: ${d.lost_reason}` : ''}`;
+                  })
+                  .join('\n');
+              }
+            } catch {
+              // Continue without lost deals history
+            }
+          }
+
+          setLead({
+            ...data,
+            notesContent,
+            lostDealsHistory,
+            allCustomFields: Object.keys(allCustomFields).length > 0 ? allCustomFields : undefined,
           });
+          setLoading(false);
+          // Look up Seazone client status by email
+          if (data.e_mail) {
+            setCheckingCliente(true);
+            lookupSeazoneClient(data.e_mail).then((result) => {
+              setClienteSeazone(result);
+              setCheckingCliente(false);
+            });
+          }
+        } catch (err) {
+          // Continue even if enrichment fails
+          setLead(data);
+          setLoading(false);
+          if (data.e_mail) {
+            setCheckingCliente(true);
+            lookupSeazoneClient(data.e_mail).then((result) => {
+              setClienteSeazone(result);
+              setCheckingCliente(false);
+            });
+          }
         }
       })
       .catch((err) => {
