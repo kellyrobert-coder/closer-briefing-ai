@@ -46,6 +46,20 @@ export async function searchWeb(query: string): Promise<WebResearchResult[]> {
 
 // ─── OSINT Investigation ─────────────────────────────────────────────────────
 
+// ─── DDD → State mapping for geographic validation ──────────────────────────
+const DDD_STATE: Record<string, string> = {
+  '11':'SP','12':'SP','13':'SP','14':'SP','15':'SP','16':'SP','17':'SP','18':'SP','19':'SP',
+  '21':'RJ','22':'RJ','24':'RJ','27':'ES','28':'ES',
+  '31':'MG','32':'MG','33':'MG','34':'MG','35':'MG','37':'MG','38':'MG',
+  '41':'PR','42':'PR','43':'PR','44':'PR','45':'PR','46':'PR',
+  '47':'SC','48':'SC','49':'SC',
+  '51':'RS','53':'RS','54':'RS','55':'RS',
+  '61':'DF','62':'GO','63':'TO','64':'GO','65':'MT','66':'MT','67':'MS','68':'AC','69':'RO',
+  '71':'BA','73':'BA','74':'BA','75':'BA','77':'BA',
+  '79':'SE','81':'PE','82':'AL','83':'PB','84':'RN','85':'CE','86':'PI','87':'PE','88':'CE','89':'PI',
+  '91':'PA','92':'AM','93':'PA','94':'PA','95':'RR','96':'AP','97':'AM','98':'MA','99':'MA',
+};
+
 export async function investigateLead(lead: Lead): Promise<{
   rawResults: WebResearchResult[];
   profile: OsintProfile;
@@ -57,132 +71,169 @@ export async function investigateLead(lead: Lead): Promise<{
   const name = lead.nome_investidor;
   const email = lead.e_mail || '';
   const phone = lead.telefone || '';
-  const ddd = phone.replace(/\D/g, '').slice(0, 4);
+  const phoneDigits = phone.replace(/\D/g, '');
+  const ddd = phoneDigits.slice(phoneDigits.length >= 12 ? 2 : 0, phoneDigits.length >= 12 ? 4 : 2);
+  const dddState = DDD_STATE[ddd] || '';
   const cidade = lead.cidade_onde_fica_o_imovel || '';
   const profissao = lead.profissao || '';
 
-  // Extract username from email (e.g. "petra.n.r.lins" from "petra.n.r.lins@gmail.com")
+  // ── STEP 1: Email decomposition (the "anchor point") ──────────────────────
   const emailUser = email.split('@')[0] || '';
-  // Try to infer full name from email if name is short
-  const emailNameHint = emailUser.replace(/[._]/g, ' ').replace(/\d+/g, '').trim();
+  // Decompose email parts: "petra.n.r.lins" → ["petra", "n", "r", "lins"]
+  const emailParts = emailUser.split(/[._-]/).filter((p) => p && !/^\d+$/.test(p));
+  // Infer possible full name from email parts
+  const emailFullName = emailParts
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .join(' ');
+  // Generate username guessing variations for social media
+  const usernameGuesses: string[] = [];
+  if (emailParts.length >= 2) {
+    usernameGuesses.push(emailParts.join('')); // petranrlins
+    usernameGuesses.push(emailParts[0] + emailParts[emailParts.length - 1]); // petralins
+    usernameGuesses.push(emailParts.join('.')); // petra.n.r.lins
+    usernameGuesses.push(emailParts.join('_')); // petra_n_r_lins
+    if (emailParts.length >= 3) {
+      // first + last surname (skip initials): petraramos, petralins
+      usernameGuesses.push(emailParts[0] + emailParts[emailParts.length - 1]);
+      // first + second part: petran, petrarthur
+      usernameGuesses.push(emailParts[0] + emailParts[1]);
+    }
+  }
+  const uniqueUsernames = [...new Set(usernameGuesses)].slice(0, 4);
 
-  // Build comprehensive search queries using ALL available data
+  // ── STEP 2: Build OSINT search queries (Google Dorks methodology) ─────────
   const queries: string[] = [];
 
-  // Core identity searches
-  queries.push(`"${name}" LinkedIn`);
-  queries.push(`"${name}" Instagram OR Facebook`);
-
-  // Email-based searches (critical for OSINT)
+  // FASE 1: Busca direta pelo email (allintext dork) — most valuable
   if (email) {
-    queries.push(`"${email}"`);
-    if (emailUser.length > 4) {
-      queries.push(`"${emailUser}" site:linkedin.com OR site:instagram.com OR site:facebook.com`);
-    }
+    queries.push(`allintext:"${email}"`);
   }
 
-  // Professional / CNPJ searches
-  if (profissao) {
-    queries.push(`"${name}" ${profissao} ${cidade}`);
-  }
-  queries.push(`"${name}" CNPJ OR sócio OR empresa site:escavador.com OR site:jusbrasil.com.br OR site:consultasocio.com`);
-
-  // Location-based refinement
-  if (cidade || ddd) {
-    queries.push(`"${name}" ${cidade || ''} ${ddd ? 'DDD ' + ddd.slice(0, 2) : ''} advogado OR empresário OR investidor OR profissional`.trim());
+  // FASE 2: Nome completo inferido do email + localização (validation)
+  if (emailFullName && emailFullName.toLowerCase() !== name.toLowerCase() && emailParts.length >= 3) {
+    queries.push(`"${emailFullName}" ${dddState || cidade || ''}`);
   }
 
-  // Phone-based searches (can reveal profiles, WhatsApp business, etc.)
-  if (phone) {
-    const digits = phone.replace(/\D/g, '');
-    // Search the phone number directly — can find WhatsApp business, classified ads, registrations
-    if (digits.length >= 10) {
-      queries.push(`"${digits}" OR "${digits.slice(-11)}" OR "${digits.slice(-9)}"`);
-    }
+  // FASE 3: LinkedIn search (name + inferred name)
+  queries.push(`site:linkedin.com "${name}"`);
+  if (emailFullName !== name && emailParts.length >= 2) {
+    const linkedinName = emailParts[0] + ' ' + emailParts[emailParts.length - 1];
+    queries.push(`site:linkedin.com "${linkedinName}"`);
   }
 
-  // If email suggests a different/fuller name, search that too
-  if (emailNameHint && emailNameHint.toLowerCase() !== name.toLowerCase() && emailNameHint.split(' ').length >= 2) {
-    queries.push(`"${emailNameHint}" LinkedIn OR Instagram`);
+  // FASE 4: Instagram/Facebook username guessing
+  if (uniqueUsernames.length > 0) {
+    const usernameQuery = uniqueUsernames.slice(0, 3).map((u) => `"${u}"`).join(' OR ');
+    queries.push(`site:instagram.com ${usernameQuery}`);
+    queries.push(`site:facebook.com "${name}" OR ${uniqueUsernames.slice(0, 2).map((u) => `"${u}"`).join(' OR ')}`);
+  } else {
+    queries.push(`"${name}" Instagram OR Facebook`);
   }
 
-  // Limit to 8 parallel queries to balance depth vs rate limits
-  const finalQueries = queries.slice(0, 8);
+  // FASE 5: Fontes oficiais - Escavador, JusBrasil, ConsultaSocio (CNPJ/OAB)
+  queries.push(`site:escavador.com OR site:jusbrasil.com.br "${name}" ${dddState || ''}`);
 
+  // FASE 6: Nome + contexto profissional/geográfico
+  const geoContext = cidade || (dddState ? `estado ${dddState}` : '');
+  if (geoContext || profissao) {
+    queries.push(`"${name}" ${profissao || 'investidor'} ${geoContext}`.trim());
+  }
+
+  // FASE 7: Telefone (pode revelar WhatsApp Business, OLX, classificados)
+  if (phoneDigits.length >= 10) {
+    queries.push(`"${phoneDigits.slice(-11)}" OR "${phoneDigits.slice(-10)}" OR "${phoneDigits.slice(-9)}"`);
+  }
+
+  // Execute all searches in parallel (max 10)
+  const finalQueries = queries.slice(0, 10);
   const searchPromises = finalQueries.map((q) =>
     searchWeb(q).catch(() => [] as WebResearchResult[])
   );
   const searchResults = await Promise.all(searchPromises);
 
-  // Flatten and deduplicate
+  // Flatten, deduplicate, and annotate with which query found each result
   const seen = new Set<string>();
   const allResults: WebResearchResult[] = [];
-  for (const batch of searchResults) {
-    for (const r of batch) {
+  const queryLabels = [
+    'Busca email direto', 'Nome inferido do email', 'LinkedIn (nome)',
+    'LinkedIn (nome email)', 'Instagram (usernames)', 'Facebook',
+    'Escavador/JusBrasil', 'Nome + profissão + cidade', 'Telefone'
+  ];
+  for (let qi = 0; qi < searchResults.length; qi++) {
+    for (const r of searchResults[qi]) {
       if (!seen.has(r.link)) {
         seen.add(r.link);
+        r.source = `${r.source} [via: ${queryLabels[qi] || `query ${qi + 1}`}]`;
         allResults.push(r);
       }
     }
   }
 
-  // Build context for Gemini OSINT analysis
+  // ── STEP 3: Build context for Gemini OSINT analysis ───────────────────────
   const searchContext = allResults
-    .map((r, i) => `[${i + 1}] ${r.title}\n    URL: ${r.link}\n    ${r.snippet}`)
+    .map((r, i) => `[${i + 1}] ${r.title}\n    URL: ${r.link}\n    Fonte: ${r.source}\n    ${r.snippet}`)
     .join('\n\n');
 
-  // All custom fields from Pipedrive for extra context
   const extraFields = lead.allCustomFields
     ? Object.entries(lead.allCustomFields).filter(([,v]) => v).map(([k,v]) => `- ${k}: ${v}`).join('\n')
     : '';
 
   const osintPrompt = `Atue como um especialista em OSINT (Open Source Intelligence) e análise de dados públicos.
-Investigue o perfil abaixo e organize as informações encontradas de forma estruturada.
+Investigue o perfil abaixo cruzando todas as informações disponíveis.
 
-🔎 DADOS DISPONÍVEIS DO PIPEDRIVE:
-- Nome Completo: ${name}
-- Telefone/DDD: ${phone || 'Não informado'}
+🔎 DADOS DO LEAD (PIPEDRIVE):
+- Nome no CRM: ${name}
+- Telefone: ${phone || 'Não informado'} ${ddd ? `(DDD ${ddd} = ${dddState || 'estado desconhecido'})` : ''}
 - E-mail: ${email || 'Não informado'}
-- Username do email: ${emailUser || 'N/A'}
-- Possível nome completo inferido do email: ${emailNameHint || 'N/A'}
-- Localização Provável: ${cidade || 'Não informada'}
 - Profissão: ${profissao || 'Não informada'}
+- Localização: ${cidade || 'Não informada'}
 - Nacionalidade: ${lead.nacionalidade || 'Não informada'}
 - Estado Civil: ${lead.estado_civil || 'Não informado'}
-${extraFields ? `\nCAMPOS EXTRAS DO PIPEDRIVE:\n${extraFields}` : ''}
+${extraFields ? `\nCAMPOS EXTRAS:\n${extraFields}` : ''}
 
-🌐 OBJETIVO: Cruzar os dados acima para encontrar:
-1. Presença Digital: LinkedIn, Instagram, Facebook e portfólios profissionais.
-2. Vida Profissional: Cargo atual, empresa e trajetória.
-3. Contexto Público: Informações em portais de transparência, registros de empresas (CNPJ), Escavador, JusBrasil, publicações acadêmicas/oficiais.
+🧠 ANÁLISE DO EMAIL (PONTO DE ANCORAGEM):
+- Email completo: ${email || 'N/A'}
+- Username: ${emailUser || 'N/A'}
+- Partes decompostas: ${emailParts.join(' | ') || 'N/A'}
+- Nome completo provável: ${emailFullName || 'N/A'}
+- Variações de username para busca em redes: ${uniqueUsernames.join(', ') || 'N/A'}
 
-📋 RESULTADOS DA BUSCA WEB (${allResults.length} resultados):
-${searchContext || 'Nenhum resultado encontrado nas buscas'}
+📍 VALIDAÇÃO GEOGRÁFICA:
+- DDD: ${ddd || 'N/A'} → Estado: ${dddState || 'N/A'}
+- Cidade informada: ${cidade || 'N/A'}
 
-⚠️ REGRAS:
-- O EMAIL é uma pista crucial: analise o username (${emailUser}) para inferir nome completo, iniciais, sobrenomes
-- Diferencie informações CONFIRMADAS de SUPOSIÇÕES
-- Se houver homônimos, liste as opções mais prováveis com base no DDD (${ddd}), cidade (${cidade}) ou profissão
-- Cite a origem da informação (ex: "encontrado via bio do Instagram", "resultado #3")
-- Para redes sociais, SEMPRE inclua a URL completa se disponível nos resultados
-- Se não encontrar um perfil, explique o que foi buscado e por que não foi encontrado
-- Cruze informações entre diferentes fontes para aumentar a confiança
-- Foque em informações úteis para um vendedor (closer) que vai fazer uma reunião de vendas com esta pessoa
+📋 RESULTADOS DAS ${finalQueries.length} BUSCAS (${allResults.length} resultados únicos):
+${searchContext || 'Nenhum resultado encontrado'}
+
+🔬 METODOLOGIA QUE VOCÊ DEVE SEGUIR:
+1. DECOMPOSIÇÃO DO EMAIL: Analise "${emailUser}" — as iniciais/partes geralmente correspondem ao nome completo real. Por exemplo, "petra.n.r.lins" → Petra N. R. Lins → buscar listas de aprovados em vestibulares, OAB, concursos com esse padrão.
+2. VALIDAÇÃO GEOGRÁFICA: O DDD ${ddd || 'N/A'} confirma a região (${dddState || '?'}). Cruze com os resultados para filtrar homônimos.
+3. FILTRO PROFISSIONAL: Com nome completo + cidade, busque registros profissionais (OAB, CRM, CREA, CRP, etc.), LinkedIn, e cargos.
+4. USERNAME GUESSING: Pessoas reutilizam padrões do email nas redes sociais. Teste variações: ${uniqueUsernames.join(', ')}.
+5. CRUZAMENTO DE FONTES: Valide cada achado contra pelo menos 2 fontes diferentes. Se a bio do Instagram menciona a mesma profissão e cidade encontrada no LinkedIn, a confiança aumenta.
+
+⚠️ REGRAS RÍGIDAS:
+- O email "${email}" é o dado mais valioso — SEMPRE decomponha e analise
+- Diferencie CONFIRMADO (múltiplas fontes concordam) de PROVÁVEL (uma fonte) de SUPOSIÇÃO (inferência lógica)
+- Para cada rede social, inclua a URL COMPLETA dos resultados de busca
+- Se não encontrou em alguma rede, explique o que foi tentado
+- CITE SEMPRE o número do resultado (ex: "resultado #3") como evidência
+- Foque em informações que ajudem um VENDEDOR em uma reunião de vendas
 
 Responda EXCLUSIVAMENTE em JSON válido:
 {
-  "pessoa_identificada": "Nome completo identificado + breve descrição (cargo, empresa, cidade)",
-  "nivel_confianca": "Alto|Médio|Baixo - justificativa detalhada de por que este nível (mencione as evidências que confirmam ou não)",
+  "pessoa_identificada": "Nome completo real identificado + cargo/profissão + cidade (ex: 'Petra Nathalia Ramos Lins, Advogada em Manaus/AM')",
+  "nivel_confianca": "Alto|Médio|Baixo - explicação detalhada das evidências que sustentam este nível",
   "redes_sociais": [
-    {"plataforma": "LinkedIn", "url": "URL completa ou vazio se não encontrado", "descricao": "Cargo, empresa, resumo do perfil, ou explicação de por que não foi encontrado"},
-    {"plataforma": "Instagram", "url": "URL completa ou vazio", "descricao": "Username, tipo de conteúdo, observações relevantes"},
-    {"plataforma": "Facebook", "url": "URL completa ou vazio", "descricao": "Informações relevantes do perfil"}
+    {"plataforma": "LinkedIn", "url": "URL completa do perfil encontrado, ou vazio", "descricao": "Cargo atual, empresa, resumo da experiência profissional. Se não encontrado, explique o que foi buscado."},
+    {"plataforma": "Instagram", "url": "URL completa ou vazio", "descricao": "Username encontrado, tipo de conteúdo, bio, observações úteis para rapport"},
+    {"plataforma": "Facebook", "url": "URL completa ou vazio", "descricao": "Informações relevantes: cidade, trabalho, interesses"}
   ],
-  "historico_profissional": "Resumo detalhado da trajetória profissional: formação, empresas, cargos, área de atuação (3-5 frases)",
-  "empresas_cnpj": "Empresas onde aparece como sócio/dono, registros no Escavador, CNPJ vinculados. Se não encontrado, diga explicitamente.",
-  "contexto_publico": "Informações de portais públicos, diários oficiais, JusBrasil, notícias, publicações acadêmicas, processos judiciais mencionados",
-  "evidencias": ["evidência 1 (fonte: resultado #X ou nome do site)", "evidência 2", "evidência 3"],
-  "resumo_para_closer": "Resumo prático de 4-5 frases para o closer usar na reunião: quem é essa pessoa, qual sua profissão e renda provável, como abordar, pontos de conexão pessoal, e qualquer informação que ajude a gerar rapport e fechar a venda"
+  "historico_profissional": "Trajetória profissional completa: formação acadêmica (universidade), empresas onde trabalhou/trabalha, cargos, registro profissional (OAB/CRM/CREA se aplicável), área de especialização. 3-5 frases detalhadas.",
+  "empresas_cnpj": "Empresas onde aparece como sócio/proprietário (Escavador, ConsultaSocio, Receita Federal). CNPJ, razão social, situação cadastral. Se não encontrado, dizer explicitamente.",
+  "contexto_publico": "Publicações em diários oficiais (TJAM, DOU, etc.), processos judiciais (JusBrasil), publicações acadêmicas, notícias, participação em eventos. Inclua detalhes específicos.",
+  "evidencias": ["Evidência 1 — resultado #X: descrição (fonte: nome do site)", "Evidência 2 — cruzamento entre resultado #X e #Y", "Evidência 3"],
+  "resumo_para_closer": "RESUMO PRÁTICO (5-6 frases): Quem é esta pessoa (nome completo, profissão, cidade). Qual é seu perfil financeiro provável (baseado em cargo/empresa). Como gerar rapport (interesses pessoais, hobbies visíveis nas redes). Pontos de conexão com investimento imobiliário. Abordagem recomendada para a reunião. Cuidados ou observações importantes."
 }`;
 
   const model = 'gemini-2.5-flash';
