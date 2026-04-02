@@ -50,6 +50,17 @@ export interface WebResearchResult {
   source: string;
 }
 
+export interface OsintProfile {
+  pessoa_identificada: string;
+  nivel_confianca: string;
+  redes_sociais: { plataforma: string; url: string; descricao: string }[];
+  historico_profissional: string;
+  empresas_cnpj: string;
+  contexto_publico: string;
+  evidencias: string[];
+  resumo_para_closer: string;
+}
+
 export interface ApiKeys {
   gemini: string;
   serpapi: string;
