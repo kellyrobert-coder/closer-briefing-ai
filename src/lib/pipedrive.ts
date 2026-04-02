@@ -5,6 +5,30 @@ const BASE = 'https://api.pipedrive.com/v1';
 // ─── Module-level cache for deal fields ────────────────────────────────────
 let dealFieldsCache: Map<string, DealField> | null = null;
 
+// ─── Company domain cache ──────────────────────────────────────────────────
+let companyDomainCache: string | null = null;
+
+export async function fetchCompanyDomain(apiToken: string): Promise<string> {
+  if (companyDomainCache) return companyDomainCache;
+  try {
+    const res = await fetch(`${BASE}/users/me?api_token=${apiToken}`);
+    if (!res.ok) return '';
+    const data = await res.json();
+    const domain = data?.data?.company_domain || '';
+    if (domain) companyDomainCache = domain;
+    return domain;
+  } catch {
+    return '';
+  }
+}
+
+export function getPipedriveDeepLink(companyDomain: string, dealId: number): string {
+  if (companyDomain) {
+    return `https://${companyDomain}.pipedrive.com/deal/${dealId}`;
+  }
+  return `https://app.pipedrive.com/deal/${dealId}`;
+}
+
 // ─── Custom field hash keys (from GET /v1/dealFields) ────────────────────────
 const F = {
   NOME_INVESTIDOR:   'd0ac708e265df3324f6c217f2f96526132479e3b',

@@ -4,7 +4,7 @@ import Header from '../components/Header';
 import LeadInfoPanel from '../components/LeadInfoPanel';
 import BriefingPanel from '../components/BriefingPanel';
 import WebResearchPanel from '../components/WebResearchPanel';
-import { fetchDeal, fetchDealNotes, fetchPersonDeals, fetchDealAllFields } from '../lib/pipedrive';
+import { fetchDeal, fetchDealNotes, fetchPersonDeals, fetchDealAllFields, fetchCompanyDomain, getPipedriveDeepLink } from '../lib/pipedrive';
 import { getApiKeys } from '../lib/api-keys';
 import { lookupSeazoneClient, preloadSeazoneLookup } from '../lib/seazone-lookup';
 import type { SeazoneClientInfo } from '../lib/seazone-lookup';
@@ -24,6 +24,7 @@ export default function LeadDetail() {
   const [activeTab, setActiveTab] = useState<Tab>('info');
   const [clienteSeazone, setClienteSeazone] = useState<SeazoneClientInfo | null>(null);
   const [checkingCliente, setCheckingCliente] = useState(false);
+  const [pipedriveUrl, setPipedriveUrl] = useState<string>('');
 
   useEffect(() => {
     if (!id) return;
@@ -37,10 +38,12 @@ export default function LeadDetail() {
       .then(async (data) => {
         // Fetch enriched data in parallel
         try {
-          const [notes, allCustomFields] = await Promise.all([
+          const [notes, allCustomFields, companyDomain] = await Promise.all([
             fetchDealNotes(data.id, apiToken).catch(() => []),
             fetchDealAllFields(data.id, apiToken).catch(() => ({})),
+            fetchCompanyDomain(apiToken).catch(() => ''),
           ]);
+          setPipedriveUrl(getPipedriveDeepLink(companyDomain, data.id));
 
           // Build notes content
           const notesContent =
@@ -165,7 +168,7 @@ export default function LeadDetail() {
         </div>
 
         <div>
-          {activeTab === 'info' && <LeadInfoPanel lead={lead} clienteSeazone={clienteSeazone} checkingCliente={checkingCliente} />}
+          {activeTab === 'info' && <LeadInfoPanel lead={lead} clienteSeazone={clienteSeazone} checkingCliente={checkingCliente} pipedriveUrl={pipedriveUrl} />}
           {activeTab === 'briefing' && <BriefingPanel lead={lead} />}
           {activeTab === 'research' && <WebResearchPanel lead={lead} />}
         </div>

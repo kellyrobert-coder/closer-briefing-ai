@@ -11,9 +11,10 @@ interface Props {
   lead: Lead;
   clienteSeazone?: SeazoneClientInfo | null;
   checkingCliente?: boolean;
+  pipedriveUrl?: string;
 }
 
-export default function LeadInfoPanel({ lead, clienteSeazone, checkingCliente }: Props) {
+export default function LeadInfoPanel({ lead, clienteSeazone, checkingCliente, pipedriveUrl }: Props) {
   const completionRate = lead.total_de_atividades > 0
     ? Math.round((lead.atividades_concluidas / lead.total_de_atividades) * 100)
     : 0;
@@ -68,7 +69,7 @@ export default function LeadInfoPanel({ lead, clienteSeazone, checkingCliente }:
             icon={<ExternalLink className="w-4 h-4 text-orange-400" />}
             label="Pipedrive"
             value="Abrir no Pipedrive"
-            href={`https://seazone2.pipedrive.com/deal/${lead.id}`}
+            href={pipedriveUrl || `https://app.pipedrive.com/deal/${lead.id}`}
           />
         </div>
       </div>
