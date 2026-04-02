@@ -23,6 +23,7 @@ export default function LeadDetail() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('info');
   const [clienteSeazone, setClienteSeazone] = useState<SeazoneClientInfo | null>(null);
+  const [checkingCliente, setCheckingCliente] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -30,6 +31,7 @@ export default function LeadDetail() {
     setLoading(true);
     setError(null);
     setClienteSeazone(null);
+    setCheckingCliente(false);
 
     fetchDeal(Number(id), apiToken)
       .then((data) => {
@@ -37,7 +39,11 @@ export default function LeadDetail() {
         setLoading(false);
         // Look up Seazone client status by email
         if (data.e_mail) {
-          lookupSeazoneClient(data.e_mail).then(setClienteSeazone);
+          setCheckingCliente(true);
+          lookupSeazoneClient(data.e_mail).then((result) => {
+            setClienteSeazone(result);
+            setCheckingCliente(false);
+          });
         }
       })
       .catch((err) => {
@@ -100,7 +106,7 @@ export default function LeadDetail() {
         </div>
 
         <div>
-          {activeTab === 'info' && <LeadInfoPanel lead={lead} clienteSeazone={clienteSeazone} />}
+          {activeTab === 'info' && <LeadInfoPanel lead={lead} clienteSeazone={clienteSeazone} checkingCliente={checkingCliente} />}
           {activeTab === 'briefing' && <BriefingPanel lead={lead} />}
           {activeTab === 'research' && <WebResearchPanel lead={lead} />}
         </div>

@@ -4,15 +4,16 @@ import { formatCurrency, formatDate, formatPhone } from '../lib/utils';
 import {
   User, Mail, Phone, MapPin, Building2, DollarSign,
   Calendar, Briefcase, Heart, Flag, Activity,
-  MessageSquare, FileText, GitBranch, Star, Home
+  MessageSquare, FileText, GitBranch, Star, Home, Loader2, UserCheck
 } from 'lucide-react';
 
 interface Props {
   lead: Lead;
   clienteSeazone?: SeazoneClientInfo | null;
+  checkingCliente?: boolean;
 }
 
-export default function LeadInfoPanel({ lead, clienteSeazone }: Props) {
+export default function LeadInfoPanel({ lead, clienteSeazone, checkingCliente }: Props) {
   const completionRate = lead.total_de_atividades > 0
     ? Math.round((lead.atividades_concluidas / lead.total_de_atividades) * 100)
     : 0;
@@ -41,9 +42,19 @@ export default function LeadInfoPanel({ lead, clienteSeazone }: Props) {
       </div>
 
       {/* Cliente Seazone Badge */}
-      {clienteSeazone && (
+      {checkingCliente ? (
+        <div className="flex items-center gap-2 px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl text-gray-500 text-sm">
+          <Loader2 className="w-4 h-4 animate-spin text-orange-400 shrink-0" />
+          Verificando histórico na base Seazone...
+        </div>
+      ) : clienteSeazone ? (
         <SeazoneClientBadge info={clienteSeazone} />
-      )}
+      ) : lead.e_mail ? (
+        <div className="flex items-center gap-2 px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl text-gray-500 text-sm">
+          <UserCheck className="w-4 h-4 text-gray-600 shrink-0" />
+          Novo prospect — sem histórico na base Seazone
+        </div>
+      ) : null}
 
       {/* Contact Info */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
