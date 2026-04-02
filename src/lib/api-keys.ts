@@ -6,7 +6,7 @@ const STORAGE_KEY = 'closer-briefing-api-keys';
 // In production (GH Actions), secrets are injected via workflow env vars
 // Locally, .env file provides the values (and is in .gitignore)
 const ENV_KEYS: ApiKeys = {
-  gemini: import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyCzwZHUd_ogMlo2nsOcfvsaWadINHeWBjM',
+  gemini: import.meta.env.VITE_GEMINI_API_KEY || 'AIzaSyAzmBAMTqSX8oatTkmpL7RLoUyTgmrLLJE',
   serpapi: import.meta.env.VITE_SERPAPI_KEY || 'ff5a57d29a63f889ac18ee2503a723318a60539ce17bb17ceef1522095430e72',
   pipedrive: import.meta.env.VITE_PIPEDRIVE_API_KEY || '12339180235d1073c5cdd0fee730354da51fb94c',
 };
