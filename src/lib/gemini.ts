@@ -72,14 +72,38 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown, sem backticks, sem texto 
 
   if (!response.ok) {
     const errText = await response.text();
-    throw new Error(`Gemini API error ${response.status}: ${errText.slice(0, 200)}`);
+    throw new Error(`Gemini API error ${response.status}: ${errText.slice(0, 300)}`);
   }
 
-  const data = await response.json();
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    const raw = await response.text();
+    throw new Error(`Gemini retornou resposta inválida (não-JSON): ${raw.slice(0, 300)}`);
+  }
 
-  // Extract text from response parts (handle both thinking and non-thinking models)
-  const parts: { text?: string; thought?: boolean }[] =
-    data.candidates?.[0]?.content?.parts ?? [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const d = data as any;
+
+  // Check for API-level errors in the response body
+  if (d.error) {
+    throw new Error(`Gemini API: ${d.error.message ?? JSON.stringify(d.error).slice(0, 300)}`);
+  }
+
+  // Check for blocked/empty candidates
+  if (!d.candidates || d.candidates.length === 0) {
+    const reason = d.promptFeedback?.blockReason ?? 'unknown';
+    throw new Error(`Gemini bloqueou a resposta (reason: ${reason}). Tente com outro lead.`);
+  }
+
+  const candidate = d.candidates[0];
+  if (candidate.finishReason && candidate.finishReason !== 'STOP' && candidate.finishReason !== 'MAX_TOKENS') {
+    throw new Error(`Gemini finishReason: ${candidate.finishReason}. Conteúdo pode ter sido bloqueado.`);
+  }
+
+  // Extract text from response parts
+  const parts: { text?: string; thought?: boolean }[] = candidate.content?.parts ?? [];
 
   // Prefer non-thought parts, fallback to any part with text
   const text =
@@ -87,7 +111,7 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown, sem backticks, sem texto 
     parts.map((p) => p.text ?? '').join('');
 
   if (!text) {
-    throw new Error('Resposta vazia do Gemini. Verifique sua chave de API nas Configurações.');
+    throw new Error(`Resposta vazia do Gemini. Parts: ${JSON.stringify(parts).slice(0, 200)}`);
   }
 
   // Clean up: strip markdown fences if present
@@ -104,8 +128,7 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown, sem backticks, sem texto 
 
   try {
     return JSON.parse(cleaned) as BriefingResult;
-  } catch (e) {
-    console.error('[Gemini] Parse failed. Text preview:', cleaned.slice(0, 500));
-    throw new Error('Erro ao interpretar resposta do Gemini. Tente novamente.');
+  } catch {
+    throw new Error(`JSON inválido do Gemini: ${cleaned.slice(0, 200)}`);
   }
 }
