@@ -1,16 +1,18 @@
 import type { Lead } from '../types/lead';
+import type { SeazoneClientInfo } from '../lib/seazone-lookup';
 import { formatCurrency, formatDate, formatPhone } from '../lib/utils';
 import {
   User, Mail, Phone, MapPin, Building2, DollarSign,
   Calendar, Briefcase, Heart, Flag, Activity,
-  MessageSquare, FileText, GitBranch
+  MessageSquare, FileText, GitBranch, Star, Home
 } from 'lucide-react';
 
 interface Props {
   lead: Lead;
+  clienteSeazone?: SeazoneClientInfo | null;
 }
 
-export default function LeadInfoPanel({ lead }: Props) {
+export default function LeadInfoPanel({ lead, clienteSeazone }: Props) {
   const completionRate = lead.total_de_atividades > 0
     ? Math.round((lead.atividades_concluidas / lead.total_de_atividades) * 100)
     : 0;
@@ -37,6 +39,11 @@ export default function LeadInfoPanel({ lead }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Cliente Seazone Badge */}
+      {clienteSeazone && (
+        <SeazoneClientBadge info={clienteSeazone} />
+      )}
 
       {/* Contact Info */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
@@ -140,6 +147,61 @@ function StatBox({ icon, label, value, sublabel }: { icon: React.ReactNode; labe
       </div>
       <p className="text-lg font-bold text-white">{value}</p>
       <p className="text-xs text-gray-500">{sublabel}</p>
+    </div>
+  );
+}
+
+function SeazoneClientBadge({ info }: { info: SeazoneClientInfo }) {
+  const isSZI = info.tipo === 'SZI' || info.tipo === 'SZI+SZS';
+  const isSZS = info.tipo === 'SZS' || info.tipo === 'SZI+SZS';
+  const isAtivo = info.status === 'ATIVO';
+
+  return (
+    <div className="bg-gradient-to-br from-emerald-950/60 to-teal-950/60 border border-emerald-500/30 rounded-xl p-5">
+      <div className="flex items-center gap-2 mb-3">
+        <Star className="w-5 h-5 text-emerald-400 fill-emerald-400/30" />
+        <h3 className="font-semibold text-emerald-300 text-sm uppercase tracking-wider">
+          Já é Cliente Seazone
+        </h3>
+        <span className={`ml-auto text-xs px-2.5 py-1 rounded-full font-medium ${
+          isAtivo
+            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+            : 'bg-gray-700/50 text-gray-400 border border-gray-600/30'
+        }`}>
+          {info.status}
+        </span>
+      </div>
+
+      <div className="space-y-2">
+        {isSZI && info.empreendimentos.length > 0 && (
+          <div className="flex items-start gap-3">
+            <Building2 className="w-4 h-4 text-emerald-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-xs text-gray-500 mb-1">Investidor SZI — Empreendimento(s):</p>
+              <div className="flex flex-wrap gap-1.5">
+                {info.empreendimentos.map((emp) => (
+                  <span
+                    key={emp}
+                    className="text-xs bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 rounded-full px-2.5 py-0.5"
+                  >
+                    {emp}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {isSZS && (
+          <div className="flex items-center gap-3">
+            <Home className="w-4 h-4 text-cyan-400 shrink-0" />
+            <div>
+              <p className="text-xs text-gray-500">Anfitrião SZS</p>
+              <p className="text-sm text-cyan-300">Imóvel em gestão pela Seazone</p>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -6,8 +6,13 @@ import BriefingPanel from '../components/BriefingPanel';
 import WebResearchPanel from '../components/WebResearchPanel';
 import { fetchDeal } from '../lib/pipedrive';
 import { getApiKeys } from '../lib/api-keys';
+import { lookupSeazoneClient, preloadSeazoneLookup } from '../lib/seazone-lookup';
+import type { SeazoneClientInfo } from '../lib/seazone-lookup';
 import type { Lead } from '../types/lead';
 import { Sparkles, Globe, User, AlertTriangle, Loader2 } from 'lucide-react';
+
+// Pre-warm cache on module load
+preloadSeazoneLookup();
 
 type Tab = 'briefing' | 'research' | 'info';
 
@@ -17,17 +22,23 @@ export default function LeadDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('info');
+  const [clienteSeazone, setClienteSeazone] = useState<SeazoneClientInfo | null>(null);
 
   useEffect(() => {
     if (!id) return;
     const apiToken = getApiKeys().pipedrive;
     setLoading(true);
     setError(null);
+    setClienteSeazone(null);
 
     fetchDeal(Number(id), apiToken)
       .then((data) => {
         setLead(data);
         setLoading(false);
+        // Look up Seazone client status by email
+        if (data.e_mail) {
+          lookupSeazoneClient(data.e_mail).then(setClienteSeazone);
+        }
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : 'Erro ao carregar lead.');
@@ -89,7 +100,7 @@ export default function LeadDetail() {
         </div>
 
         <div>
-          {activeTab === 'info' && <LeadInfoPanel lead={lead} />}
+          {activeTab === 'info' && <LeadInfoPanel lead={lead} clienteSeazone={clienteSeazone} />}
           {activeTab === 'briefing' && <BriefingPanel lead={lead} />}
           {activeTab === 'research' && <WebResearchPanel lead={lead} />}
         </div>
