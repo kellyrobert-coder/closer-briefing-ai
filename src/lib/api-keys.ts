@@ -5,13 +5,16 @@ const STORAGE_KEY = 'closer-briefing-api-keys';
 const DEFAULT_KEYS: ApiKeys = {
   gemini: '',
   serpapi: '',
+  pipedrive: '12339180235d1073c5cdd0fee730354da51fb94c',
 };
 
 export function getApiKeys(): ApiKeys {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      return JSON.parse(stored);
+      const parsed = JSON.parse(stored);
+      // Merge with defaults so new fields (pipedrive) are included
+      return { ...DEFAULT_KEYS, ...parsed };
     }
   } catch {}
   return DEFAULT_KEYS;

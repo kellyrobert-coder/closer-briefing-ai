@@ -6,16 +6,18 @@ import { getApiKeys, saveApiKeys } from '../lib/api-keys';
 export default function Settings() {
   const [geminiKey, setGeminiKey] = useState('');
   const [serpapiKey, setSerpapiKey] = useState('');
+  const [pipedriveKey, setPipedriveKey] = useState('');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     const keys = getApiKeys();
     setGeminiKey(keys.gemini);
     setSerpapiKey(keys.serpapi);
+    setPipedriveKey(keys.pipedrive);
   }, []);
 
   const handleSave = () => {
-    saveApiKeys({ gemini: geminiKey, serpapi: serpapiKey });
+    saveApiKeys({ gemini: geminiKey, serpapi: serpapiKey, pipedrive: pipedriveKey });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   };
@@ -28,6 +30,24 @@ export default function Settings() {
         <h2 className="text-2xl font-bold text-white mb-6">Configurações</h2>
 
         <div className="space-y-6">
+          {/* Pipedrive Token */}
+          <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Key className="w-5 h-5 text-orange-400" />
+              <h3 className="font-semibold text-white">Token API Pipedrive</h3>
+            </div>
+            <p className="text-sm text-gray-400 mb-3">
+              Token pessoal de API do Pipedrive para busca em tempo real de negócios.
+            </p>
+            <input
+              type="password"
+              value={pipedriveKey}
+              onChange={(e) => setPipedriveKey(e.target.value)}
+              placeholder="ex: 1234abc..."
+              className="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/20 text-sm"
+            />
+          </div>
+
           {/* Gemini API Key */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
             <div className="flex items-center gap-2 mb-3">
@@ -73,25 +93,12 @@ export default function Settings() {
                 : 'bg-gradient-to-r from-orange-600 to-amber-600 text-white hover:from-orange-500 hover:to-amber-500 shadow-lg shadow-orange-500/20'
             }`}
           >
-            {saved ? (
-              <>
-                <CheckCircle className="w-5 h-5" />
-                Salvo com sucesso!
-              </>
-            ) : (
-              <>
-                <Save className="w-5 h-5" />
-                Salvar Configurações
-              </>
-            )}
+            {saved ? <><CheckCircle className="w-5 h-5" />Salvo!</> : <><Save className="w-5 h-5" />Salvar Configurações</>}
           </button>
 
-          {/* Info */}
           <div className="bg-gray-900/50 border border-gray-800/50 rounded-xl p-4">
             <p className="text-xs text-gray-500 leading-relaxed">
-              As chaves são armazenadas localmente no seu navegador (localStorage).
-              Elas são enviadas diretamente para as APIs do Google e SerpAPI, sem passar por servidores intermediários.
-              Os dados dos leads vêm do Pipedrive via Nekt Data Lake (Amazon Athena) — dados reais da operação Seazone.
+              As chaves são armazenadas localmente no navegador (localStorage) e enviadas diretamente para as APIs — sem servidores intermediários.
             </p>
           </div>
         </div>

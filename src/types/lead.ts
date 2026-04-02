@@ -50,4 +50,5 @@ export interface WebResearchResult {
 export interface ApiKeys {
   gemini: string;
   serpapi: string;
+  pipedrive: string;
 }

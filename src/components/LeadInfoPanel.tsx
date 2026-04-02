@@ -1,5 +1,5 @@
 import type { Lead } from '../types/lead';
-import { formatCurrency, formatDate, formatPhone, getScoreColor, getStatusLabel, getStatusColor } from '../lib/utils';
+import { formatCurrency, formatDate, formatPhone } from '../lib/utils';
 import {
   User, Mail, Phone, MapPin, Building2, DollarSign,
   Calendar, Briefcase, Heart, Flag, Activity,
@@ -15,21 +15,8 @@ export default function LeadInfoPanel({ lead }: Props) {
     ? Math.round((lead.atividades_concluidas / lead.total_de_atividades) * 100)
     : 0;
 
-  // Map etapa numbers to funnel stages
-  const funnelStages = [
-    { name: 'Qualificação', threshold: 180 },
-    { name: 'Reunião', threshold: 190 },
-    { name: 'Proposta', threshold: 195 },
-    { name: 'Negociação', threshold: 200 },
-    { name: 'Fechamento', threshold: 210 },
-  ];
-
-  const currentStageIndex = funnelStages.findIndex(
-    (s) => parseInt(lead.etapa) <= s.threshold
-  );
-  const stageProgress = currentStageIndex === -1
-    ? funnelStages.length
-    : currentStageIndex + 1;
+  // Show etapa label (may be a name or numeric ID)
+  const etapaLabel = lead.etapa && isNaN(Number(lead.etapa)) ? lead.etapa : lead.funil || lead.etapa;
 
   return (
     <div className="space-y-4">
@@ -40,26 +27,20 @@ export default function LeadInfoPanel({ lead }: Props) {
             <User className="w-8 h-8 text-orange-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl font-bold text-white">{lead.nome_investidor || lead.titulo}</h2>
-              <span className={`text-xs px-2.5 py-1 rounded-full text-white ${getStatusColor(lead.score)}`}>
-                {getStatusLabel(lead.score)}
+            <h2 className="text-xl font-bold text-white">{lead.nome_investidor || lead.titulo}</h2>
+            <p className="text-gray-400 text-sm mt-1">{lead.profissao || lead.canal || 'Lead Pipedrive'}</p>
+            {etapaLabel && (
+              <span className="inline-block mt-2 text-xs px-2.5 py-1 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20">
+                {etapaLabel}
               </span>
-            </div>
-            <p className="text-gray-400 text-sm mt-1">{lead.profissao || 'Investidor'}</p>
-            <div className="flex items-center gap-4 mt-3 text-sm">
-              <span className={`font-bold text-2xl ${getScoreColor(lead.score)}`}>
-                {lead.score}
-              </span>
-              <span className="text-gray-500">/100 Score</span>
-            </div>
+            )}
           </div>
         </div>
       </div>
 
       {/* Contact Info */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-        <h3 className="font-semibold text-white mb-3 text-sm uppercase tracking-wider text-gray-400">Contato</h3>
+        <h3 className="font-semibold mb-3 text-sm uppercase tracking-wider text-gray-400">Contato</h3>
         <div className="space-y-3">
           <InfoRow icon={<Mail className="w-4 h-4 text-blue-400" />} label="Email" value={lead.e_mail} />
           <InfoRow icon={<Phone className="w-4 h-4 text-emerald-400" />} label="Telefone" value={formatPhone(lead.telefone)} />
@@ -71,74 +52,66 @@ export default function LeadInfoPanel({ lead }: Props) {
 
       {/* Deal Info */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-        <h3 className="font-semibold text-white mb-3 text-sm uppercase tracking-wider text-gray-400">Negócio</h3>
+        <h3 className="font-semibold mb-3 text-sm uppercase tracking-wider text-gray-400">Negócio</h3>
         <div className="space-y-3">
-          <InfoRow icon={<DollarSign className="w-4 h-4 text-emerald-400" />} label="Valor" value={formatCurrency(lead.valor)} />
+          <InfoRow
+            icon={<DollarSign className="w-4 h-4 text-emerald-400" />}
+            label="Valor"
+            value={lead.valor > 0 ? formatCurrency(lead.valor) : 'A definir'}
+          />
           <InfoRow icon={<Building2 className="w-4 h-4 text-blue-400" />} label="Empreendimento" value={lead.empreendimento} />
           <InfoRow icon={<MapPin className="w-4 h-4 text-rose-400" />} label="Cidade" value={lead.cidade_onde_fica_o_imovel} />
           <InfoRow icon={<Calendar className="w-4 h-4 text-amber-400" />} label="Reunião" value={formatDate(lead.data_da_reuniao)} />
           <InfoRow icon={<GitBranch className="w-4 h-4 text-cyan-400" />} label="Canal" value={lead.canal || lead.origem} />
-        </div>
-      </div>
-
-      {/* Funnel Progress */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-        <h3 className="font-semibold text-white mb-4 text-sm uppercase tracking-wider text-gray-400">Progresso no Funil</h3>
-        <div className="flex items-center gap-1">
-          {funnelStages.map((stage, i) => (
-            <div key={i} className="flex-1">
-              <div
-                className={`h-2 rounded-full transition-colors ${
-                  i < stageProgress
-                    ? 'bg-gradient-to-r from-orange-500 to-amber-500'
-                    : 'bg-gray-700'
-                }`}
-              />
-              <p className={`text-xs mt-1.5 text-center ${
-                i < stageProgress ? 'text-orange-400' : 'text-gray-600'
-              }`}>
-                {stage.name}
-              </p>
-            </div>
-          ))}
+          <InfoRow icon={<Calendar className="w-4 h-4 text-gray-400" />} label="Criado em" value={formatDate(lead.negocio_criado_em)} />
         </div>
       </div>
 
       {/* Activity Stats */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-        <h3 className="font-semibold text-white mb-3 text-sm uppercase tracking-wider text-gray-400">Atividades</h3>
-        <div className="grid grid-cols-2 gap-3">
-          <StatBox
-            icon={<Activity className="w-4 h-4 text-orange-400" />}
-            label="Atividades"
-            value={`${lead.atividades_concluidas}/${lead.total_de_atividades}`}
-            sublabel={`${completionRate}% concluídas`}
-          />
-          <StatBox
-            icon={<Mail className="w-4 h-4 text-blue-400" />}
-            label="Emails"
-            value={String(lead.numero_de_mensagens_de_e_mail)}
-            sublabel="trocados"
-          />
-          <StatBox
-            icon={<FileText className="w-4 h-4 text-purple-400" />}
-            label="Notas"
-            value={String(lead.notes_count)}
-            sublabel="registradas"
-          />
-          <StatBox
-            icon={<MessageSquare className="w-4 h-4 text-emerald-400" />}
-            label="Tipo"
-            value={lead.tipo_de_venda || '—'}
-            sublabel="de venda"
-          />
+      {(lead.total_de_atividades > 0 || lead.notes_count > 0 || lead.numero_de_mensagens_de_e_mail > 0) && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <h3 className="font-semibold mb-3 text-sm uppercase tracking-wider text-gray-400">Atividades</h3>
+          <div className="grid grid-cols-2 gap-3">
+            {lead.total_de_atividades > 0 && (
+              <StatBox
+                icon={<Activity className="w-4 h-4 text-orange-400" />}
+                label="Atividades"
+                value={`${lead.atividades_concluidas}/${lead.total_de_atividades}`}
+                sublabel={`${completionRate}% concluídas`}
+              />
+            )}
+            {lead.numero_de_mensagens_de_e_mail > 0 && (
+              <StatBox
+                icon={<Mail className="w-4 h-4 text-blue-400" />}
+                label="Emails"
+                value={String(lead.numero_de_mensagens_de_e_mail)}
+                sublabel="trocados"
+              />
+            )}
+            {lead.notes_count > 0 && (
+              <StatBox
+                icon={<FileText className="w-4 h-4 text-purple-400" />}
+                label="Notas"
+                value={String(lead.notes_count)}
+                sublabel="registradas"
+              />
+            )}
+            {lead.tipo_de_venda && (
+              <StatBox
+                icon={<MessageSquare className="w-4 h-4 text-emerald-400" />}
+                label="Tipo"
+                value={lead.tipo_de_venda}
+                sublabel="de venda"
+              />
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Notes */}
       {lead.observacoes_longo && (
         <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-          <h3 className="font-semibold text-white mb-3 text-sm uppercase tracking-wider text-gray-400">Observações</h3>
+          <h3 className="font-semibold mb-3 text-sm uppercase tracking-wider text-gray-400">Observações</h3>
           <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">
             {lead.observacoes_longo}
           </p>

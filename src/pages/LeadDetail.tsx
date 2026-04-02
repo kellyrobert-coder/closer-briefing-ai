@@ -1,22 +1,39 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Header from '../components/Header';
 import LeadInfoPanel from '../components/LeadInfoPanel';
 import BriefingPanel from '../components/BriefingPanel';
 import WebResearchPanel from '../components/WebResearchPanel';
-import { useLeads } from '../contexts/LeadsContext';
+import { fetchDeal } from '../lib/pipedrive';
+import { getApiKeys } from '../lib/api-keys';
+import type { Lead } from '../types/lead';
 import { Sparkles, Globe, User, AlertTriangle, Loader2 } from 'lucide-react';
 
 type Tab = 'briefing' | 'research' | 'info';
 
 export default function LeadDetail() {
   const { id } = useParams<{ id: string }>();
-  const { leads, loading } = useLeads();
+  const [lead, setLead] = useState<Lead | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('info');
 
-  const lead = useMemo(() => {
-    return leads.find((l) => l.id === Number(id));
-  }, [id, leads]);
+  useEffect(() => {
+    if (!id) return;
+    const apiToken = getApiKeys().pipedrive;
+    setLoading(true);
+    setError(null);
+
+    fetchDeal(Number(id), apiToken)
+      .then((data) => {
+        setLead(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Erro ao carregar lead.');
+        setLoading(false);
+      });
+  }, [id]);
 
   if (loading) {
     return (
@@ -24,20 +41,20 @@ export default function LeadDetail() {
         <Header />
         <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
           <Loader2 className="w-6 h-6 animate-spin text-orange-400" />
-          <span>Carregando dados do lead...</span>
+          <span>Buscando dados do Pipedrive...</span>
         </div>
       </div>
     );
   }
 
-  if (!lead) {
+  if (error || !lead) {
     return (
       <div className="min-h-screen bg-gray-950">
         <Header />
         <div className="max-w-4xl mx-auto px-6 py-20 text-center">
           <AlertTriangle className="w-16 h-16 text-gray-700 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-white mb-2">Lead não encontrado</h2>
-          <p className="text-gray-500">O lead com ID {id} não foi encontrado nos dados do Pipedrive.</p>
+          <h2 className="text-xl font-bold text-white mb-2">Erro ao carregar lead</h2>
+          <p className="text-gray-500">{error || `Lead ID ${id} não encontrado.`}</p>
         </div>
       </div>
     );
@@ -54,7 +71,6 @@ export default function LeadDetail() {
       <Header />
 
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-6">
-        {/* Tab Navigation */}
         <div className="flex gap-1 mb-6 bg-gray-900 p-1 rounded-xl border border-gray-800">
           {tabs.map((tab) => (
             <button
@@ -72,8 +88,7 @@ export default function LeadDetail() {
           ))}
         </div>
 
-        {/* Tab Content */}
-        <div className="animate-fade-in">
+        <div>
           {activeTab === 'info' && <LeadInfoPanel lead={lead} />}
           {activeTab === 'briefing' && <BriefingPanel lead={lead} />}
           {activeTab === 'research' && <WebResearchPanel lead={lead} />}
