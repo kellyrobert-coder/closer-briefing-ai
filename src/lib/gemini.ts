@@ -51,9 +51,7 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown, sem backticks, sem texto 
   "oportunidades": ["oportunidade 1", "oportunidade 2", "oportunidade 3"]
 }`;
 
-  // Use gemini-2.0-flash for reliable JSON output (2.5-flash thinking model
-  // returns inconsistent formats that break JSON parsing)
-  const model = 'gemini-2.0-flash';
+  const model = 'gemini-2.5-flash';
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
     {
@@ -65,6 +63,8 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown, sem backticks, sem texto 
           temperature: 0.7,
           maxOutputTokens: 2048,
           responseMimeType: 'application/json',
+          // Disable thinking to get clean JSON output without thought parts
+          thinkingConfig: { thinkingBudget: 0 },
         },
       }),
     }
