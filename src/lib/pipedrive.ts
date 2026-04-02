@@ -46,6 +46,9 @@ const F = {
   ORIGEM:            'f0e7dc75928ee7be1d26b6ed65df1e26e944468d',
   DATA_REUNIAO:      'bfafc352c5c6f2edbaa41bf6d1c6daa825fc9c16',
   OBSERVACOES:       '1f91c7451cf87c5f7e69b4af88e04ee0b3655358',
+  LINK_CONVERSA:     '3dda4dab1781dcfd8839a5fd6c0b7d5e7acfbcfc',
+  LINK_REUNIAO_MIA:  '3d168fb538411d700912d494cb3ae7d813e2976b',
+  AGENTE:            '5c17a4095b6d252c358bc3764f2b72534cfe3566',
 };
 
 // ─── Enum option maps ─────────────────────────────────────────────────────────
@@ -248,6 +251,9 @@ function dealToLead(deal: Record<string, any>): Lead {
     data_da_reuniao: str(deal[F.DATA_REUNIAO]),
     data_de_qualificacao: str(deal[F.DATA_QUALIFICACAO]),
     observacoes_longo: str(deal[F.OBSERVACOES]),
+    link_conversa: str(deal[F.LINK_CONVERSA]),
+    link_reuniao_mia: str(deal[F.LINK_REUNIAO_MIA]),
+    agente: str(deal[F.AGENTE]),
     total_de_atividades: Number(deal.activities_count) || 0,
     atividades_concluidas: Number(deal.done_activities_count) || 0,
     notes_count: Number(deal.notes_count) || 0,
@@ -285,6 +291,9 @@ function searchItemToLead(item: Record<string, any>): Lead {
     data_da_reuniao: '',
     data_de_qualificacao: '',
     observacoes_longo: '',
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
     total_de_atividades: 0,
     atividades_concluidas: 0,
     notes_count: 0,

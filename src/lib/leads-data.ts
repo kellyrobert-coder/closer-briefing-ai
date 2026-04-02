@@ -34,6 +34,9 @@ export const realLeads: Lead[] = [
     negocio_criado_em: "2026-03-28",
     atualizado_em: "2026-03-31",
     score: 72,
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
   },
   {
     id: 254636,
@@ -66,6 +69,9 @@ export const realLeads: Lead[] = [
     negocio_criado_em: "2026-03-20",
     atualizado_em: "2026-03-30",
     score: 65,
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
   },
   {
     id: 250824,
@@ -98,6 +104,9 @@ export const realLeads: Lead[] = [
     negocio_criado_em: "2026-02-10",
     atualizado_em: "2026-03-29",
     score: 85,
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
   },
   {
     id: 249237,
@@ -130,6 +139,9 @@ export const realLeads: Lead[] = [
     negocio_criado_em: "2026-02-05",
     atualizado_em: "2026-03-28",
     score: 91,
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
   },
 
   // --- Leads de hoje (01/04/2026) — reuniões do dia ---
@@ -164,6 +176,9 @@ export const realLeads: Lead[] = [
     negocio_criado_em: "2026-01-14",
     atualizado_em: "2026-03-06",
     score: 0,
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
   },
   {
     id: 253505,
@@ -196,6 +211,9 @@ export const realLeads: Lead[] = [
     negocio_criado_em: "2026-03-24",
     atualizado_em: "2026-04-01",
     score: 0,
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
   },
   {
     id: 254400,
@@ -228,6 +246,9 @@ export const realLeads: Lead[] = [
     negocio_criado_em: "2026-03-26",
     atualizado_em: "2026-04-01",
     score: 0,
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
   },
   {
     id: 255567,
@@ -260,6 +281,9 @@ export const realLeads: Lead[] = [
     negocio_criado_em: "2026-03-30",
     atualizado_em: "2026-04-01",
     score: 0,
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
   },
   {
     id: 256164,
@@ -292,6 +316,9 @@ export const realLeads: Lead[] = [
     negocio_criado_em: "2026-04-01",
     atualizado_em: "2026-04-01",
     score: 0,
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
   },
   {
     id: 254456,
@@ -324,6 +351,9 @@ export const realLeads: Lead[] = [
     negocio_criado_em: "2026-03-26",
     atualizado_em: "2026-04-01",
     score: 0,
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
   },
   {
     id: 255685,
@@ -356,6 +386,9 @@ export const realLeads: Lead[] = [
     negocio_criado_em: "2026-03-30",
     atualizado_em: "2026-04-01",
     score: 0,
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
   },
   {
     id: 254615,
@@ -388,5 +421,8 @@ export const realLeads: Lead[] = [
     negocio_criado_em: "2026-03-27",
     atualizado_em: "2026-04-01",
     score: 0,
+    link_conversa: '',
+    link_reuniao_mia: '',
+    agente: '',
   },
 ];

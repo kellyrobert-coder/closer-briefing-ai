@@ -29,6 +29,9 @@ export interface Lead {
   negocio_criado_em: string;
   atualizado_em: string;
   score: number;
+  link_conversa: string;
+  link_reuniao_mia: string;
+  agente: string;
   notesContent?: string;
   lostDealsHistory?: string;
   allCustomFields?: Record<string, string>;

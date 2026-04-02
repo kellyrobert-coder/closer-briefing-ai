@@ -4,7 +4,8 @@ import { formatCurrency, formatDate, formatDateTime, formatPhone } from '../lib/
 import {
   User, Mail, Phone, MapPin, Building2, DollarSign,
   Calendar, Briefcase, Activity, ExternalLink, Hash,
-  MessageSquare, FileText, GitBranch, Star, Home, Loader2, UserCheck
+  MessageSquare, FileText, GitBranch, Star, Home, Loader2, UserCheck,
+  Bot, Video, MessageCircle
 } from 'lucide-react';
 
 interface Props {
@@ -90,6 +91,34 @@ export default function LeadInfoPanel({ lead, clienteSeazone, checkingCliente, p
           <InfoRow icon={<Calendar className="w-4 h-4 text-gray-400" />} label="Criado em" value={formatDate(lead.negocio_criado_em)} />
         </div>
       </div>
+
+      {/* MIA Info */}
+      {(lead.link_conversa || lead.link_reuniao_mia || lead.agente) && (
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
+          <h3 className="font-semibold mb-3 text-sm uppercase tracking-wider text-gray-400">MIA (Morada AI)</h3>
+          <div className="space-y-3">
+            {lead.link_conversa && (
+              <InfoRowLink
+                icon={<MessageCircle className="w-4 h-4 text-cyan-400" />}
+                label="Conversa MIA"
+                value="Abrir conversa"
+                href={lead.link_conversa}
+              />
+            )}
+            {lead.link_reuniao_mia && (
+              <InfoRowLink
+                icon={<Video className="w-4 h-4 text-blue-400" />}
+                label="Link Reunião"
+                value="Abrir reunião"
+                href={lead.link_reuniao_mia}
+              />
+            )}
+            {lead.agente && (
+              <InfoRow icon={<Bot className="w-4 h-4 text-purple-400" />} label="Agente" value={lead.agente} />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Activity Stats */}
       {(lead.total_de_atividades > 0 || lead.notes_count > 0 || lead.numero_de_mensagens_de_e_mail > 0) && (
