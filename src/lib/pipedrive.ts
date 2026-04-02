@@ -364,7 +364,19 @@ export async function fetchDealAllFields(dealId: number, apiToken: string): Prom
 // ─── Public API ───────────────────────────────────────────────────────────────
 export async function searchDeals(term: string, apiToken: string): Promise<Lead[]> {
   if (!term.trim()) return [];
-  const url = `${BASE}/deals/search?term=${encodeURIComponent(term)}&status=open&limit=20&api_token=${apiToken}`;
+
+  // If the search term is a numeric ID, fetch the deal directly
+  const trimmed = term.trim();
+  if (/^\d+$/.test(trimmed)) {
+    try {
+      const lead = await fetchDeal(Number(trimmed), apiToken);
+      return [lead];
+    } catch {
+      // If direct fetch fails (deal not found), fall through to text search
+    }
+  }
+
+  const url = `${BASE}/deals/search?term=${encodeURIComponent(trimmed)}&status=open&limit=20&api_token=${apiToken}`;
   const res = await fetch(url);
   if (!res.ok) {
     const text = await res.text();
