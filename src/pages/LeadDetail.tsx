@@ -4,7 +4,7 @@ import Header from '../components/Header';
 import LeadInfoPanel from '../components/LeadInfoPanel';
 import BriefingPanel from '../components/BriefingPanel';
 import WebResearchPanel from '../components/WebResearchPanel';
-import { fetchDeal, fetchDealNotes, fetchPersonDeals, fetchDealAllFields, fetchCompanyDomain, getPipedriveDeepLink } from '../lib/pipedrive';
+import { fetchDeal, fetchDealNotes, fetchPersonDeals, fetchDealAllFields, fetchCompanyDomain, getPipedriveDeepLink, fetchUpcomingMeetings } from '../lib/pipedrive';
 import { getApiKeys } from '../lib/api-keys';
 import { lookupSeazoneClient, preloadSeazoneLookup } from '../lib/seazone-lookup';
 import type { SeazoneClientInfo } from '../lib/seazone-lookup';
@@ -71,17 +71,36 @@ export default function LeadDetail() {
             }
           }
 
-          // Use allCustomFields to resolve enum values that dealToLead couldn't resolve
-          // "Cidade onde fica o imóvel" is an enum field — dealToLead returns the ID (e.g. "614")
+          // Use allCustomFields to resolve enum/date values that dealToLead couldn't resolve
           const cf = allCustomFields as Record<string, string>;
           const resolvedCidade = cf['Cidade onde fica o imóvel']
             || cf['Cidade onde fica o Imóvel']
             || cf['Cidade']
             || data.cidade_onde_fica_o_imovel;
+          // Try to resolve meeting date from custom fields, or fallback to upcoming-meetings.json
+          let resolvedReuniao = cf['Data da Reunião']
+            || cf['Data da reunião']
+            || cf['Data Reunião']
+            || cf['Data reunião']
+            || data.data_da_reuniao;
+
+          // If still empty, check the static upcoming-meetings JSON
+          if (!resolvedReuniao) {
+            try {
+              const meetings = await fetchUpcomingMeetings('');
+              const match = meetings.find((m) => m.dealId === data.id);
+              if (match) {
+                resolvedReuniao = match.horaReuniao
+                  ? `${match.dataReuniao} ${match.horaReuniao}`
+                  : match.dataReuniao;
+              }
+            } catch { /* ignore */ }
+          }
 
           setLead({
             ...data,
             cidade_onde_fica_o_imovel: resolvedCidade,
+            data_da_reuniao: resolvedReuniao,
             notesContent,
             lostDealsHistory,
             allCustomFields: Object.keys(allCustomFields).length > 0 ? allCustomFields : undefined,

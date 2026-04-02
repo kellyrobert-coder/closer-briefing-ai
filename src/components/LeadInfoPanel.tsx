@@ -1,6 +1,6 @@
 import type { Lead } from '../types/lead';
 import type { SeazoneClientInfo } from '../lib/seazone-lookup';
-import { formatCurrency, formatDate, formatPhone } from '../lib/utils';
+import { formatCurrency, formatDate, formatDateTime, formatPhone } from '../lib/utils';
 import {
   User, Mail, Phone, MapPin, Building2, DollarSign,
   Calendar, Briefcase, Activity, ExternalLink, Hash,
@@ -85,7 +85,7 @@ export default function LeadInfoPanel({ lead, clienteSeazone, checkingCliente, p
           />
           <InfoRow icon={<Building2 className="w-4 h-4 text-blue-400" />} label="Empreendimento" value={lead.empreendimento} />
           <InfoRow icon={<MapPin className="w-4 h-4 text-rose-400" />} label="Cidade" value={lead.cidade_onde_fica_o_imovel} />
-          <InfoRow icon={<Calendar className="w-4 h-4 text-amber-400" />} label="Reunião" value={formatDate(lead.data_da_reuniao)} />
+          <InfoRow icon={<Calendar className="w-4 h-4 text-amber-400" />} label="Reunião" value={formatDateTime(lead.data_da_reuniao)} />
           <InfoRow icon={<GitBranch className="w-4 h-4 text-cyan-400" />} label="Canal" value={lead.canal || lead.origem} />
           <InfoRow icon={<Calendar className="w-4 h-4 text-gray-400" />} label="Criado em" value={formatDate(lead.negocio_criado_em)} />
         </div>

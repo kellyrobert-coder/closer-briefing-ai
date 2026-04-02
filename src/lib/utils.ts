@@ -28,6 +28,30 @@ export function formatDate(dateStr: string): string {
   }
 }
 
+export function formatDateTime(dateStr: string): string {
+  if (!dateStr) return '—';
+  try {
+    // Handle "2026-04-03 14:00" or "2026-04-03T14:00" or just "2026-04-03"
+    const hasTime = /\d{2}:\d{2}/.test(dateStr);
+    const date = new Date(dateStr.replace(' ', 'T'));
+    const datePart = date.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+    if (hasTime) {
+      const timePart = date.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      return `${datePart} às ${timePart}`;
+    }
+    return datePart;
+  } catch {
+    return dateStr;
+  }
+}
+
 export function formatPhone(phone: string): string {
   if (!phone) return '—';
   // Clean up scientific notation format from database
