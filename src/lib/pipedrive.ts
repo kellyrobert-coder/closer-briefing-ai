@@ -462,7 +462,8 @@ export async function searchDeals(term: string, apiToken: string): Promise<Lead[
   return (data.data?.items || []).map((i: any) => searchItemToLead(i.item));
 }
 
-export function getDealMiaFields(deal: Record<string, unknown>): Record<string, string> {
+export function getDealMiaFields(deal: Record<string, unknown> | null | undefined): Record<string, string> {
+  if (!deal) return {};
   return {
     respondeu_mia: str(deal[F.RESPONDEU_MIA]),
     step_cadencia: str(deal[F.STEP_CADENCIA]),

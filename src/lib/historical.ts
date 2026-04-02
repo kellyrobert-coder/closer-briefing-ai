@@ -80,32 +80,39 @@ export interface HistoricalData {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function daysBetween(dateA: string, dateB: string): number {
+  if (!dateA || !dateB) return 0;
   const a = new Date(dateA);
   const b = new Date(dateB);
+  if (isNaN(a.getTime()) || isNaN(b.getTime())) return 0;
   return Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function hoursBetween(dateA: string, dateB: string): number {
+  if (!dateA || !dateB) return 0;
   const a = new Date(dateA);
   const b = new Date(dateB);
+  if (isNaN(a.getTime()) || isNaN(b.getTime())) return 0;
   return Math.round((b.getTime() - a.getTime()) / (1000 * 60 * 60));
 }
 
 function timeSince(creation: string, event: string): string {
+  if (!creation || !event) return '';
   const h = hoursBetween(creation, event);
+  if (isNaN(h) || h === 0) return '';
   if (h < 24) return `${h}h após criação`;
   const d = daysBetween(creation, event);
   return `${d}d após criação`;
 }
 
 function classifyActivity(a: DealActivityItem, creationDate: string): ClassifiedActivity {
-  const subj = a.subject.toLowerCase();
-  const noteL = a.note.toLowerCase();
+  const subj = (a.subject || '').toLowerCase();
+  const noteL = (a.note || '').toLowerCase();
 
   let category: ClassifiedActivity['category'] = 'outro';
 
+  const ownerL = (a.ownerName || '').toLowerCase();
   if (subj.includes('tentativa de contato pela mia') || subj.includes('cadência') ||
-      (a.ownerName.toLowerCase().includes('automac') || a.ownerName.toLowerCase().includes('autômato'))) {
+      (ownerL.includes('automac') || ownerL.includes('autômato') || ownerL.includes('morada'))) {
     category = 'cadencia_mia';
   } else if (a.type === 'call' || subj.includes('ligação') || subj.includes('ligacao') ||
       noteL.includes('ligação para')) {
@@ -167,7 +174,24 @@ export async function buildHistoricalData(
     fetchUsers(apiToken).catch(() => new Map<string, string>()),
   ]);
 
-  const miaFields = getDealMiaFields(rawDeal) as unknown as MiaFields;
+  const rawMia = getDealMiaFields(rawDeal);
+  const miaFields: MiaFields = {
+    respondeu_mia: rawMia.respondeu_mia || '',
+    step_cadencia: rawMia.step_cadencia || '',
+    data_ultima_cadencia: rawMia.data_ultima_cadencia || '',
+    hora_ultima_cadencia: rawMia.hora_ultima_cadencia || '',
+    etapa_final_cadencia: rawMia.etapa_final_cadencia || '',
+    pular_cadencia: rawMia.pular_cadencia || '',
+    rd_campanha: rawMia.rd_campanha || '',
+    predio_b2b: rawMia.predio_b2b || '',
+    status_reuniao: rawMia.status_reuniao || '',
+    motivo_lost_mia: rawMia.motivo_lost_mia || '',
+    link_conversa: rawMia.link_conversa || '',
+    hora_reuniao_mia: rawMia.hora_reuniao_mia || '',
+    data_reuniao_mia: rawMia.data_reuniao_mia || '',
+    cidade_mia: rawMia.cidade_mia || '',
+    agente: rawMia.agente || '',
+  };
   const creationDate = lead.negocio_criado_em || '';
 
   // Parse owner changes from flow (resolve user IDs to names)
@@ -196,7 +220,7 @@ export async function buildHistoricalData(
   let transbordoFrom = '';
   let transbordoTo = '';
   for (const oc of ownerChanges) {
-    const oldL = oc.oldOwner.toLowerCase();
+    const oldL = (oc.oldOwner || '').toLowerCase();
     if (oldL.includes('morada') || oldL.includes('mia') || oldL.includes('automac') || oldL.includes('autômato')) {
       transbordoTimestamp = oc.timestamp;
       transbordoFrom = oc.oldOwner;
