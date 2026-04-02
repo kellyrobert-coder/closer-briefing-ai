@@ -245,8 +245,11 @@ export interface UpcomingMeeting {
 
 export async function fetchUpcomingMeetings(apiToken: string): Promise<UpcomingMeeting[]> {
   const today = new Date().toISOString().split('T')[0];
-  // Fetch upcoming incomplete meeting activities starting from today
-  const url = `${BASE}/activities?type=meeting&done=0&start_date=${today}&limit=100&api_token=${apiToken}`;
+
+  // Fetch all incomplete activities (no type filter — Pipedrive instances use
+  // different key_string values like "reuniao", "meeting", etc.)
+  // We'll filter by date client-side.
+  const url = `${BASE}/activities?done=0&limit=200&api_token=${apiToken}`;
   const res = await fetch(url);
   if (!res.ok) return [];
   const data = await res.json();
@@ -255,24 +258,27 @@ export async function fetchUpcomingMeetings(apiToken: string): Promise<UpcomingM
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const activities: any[] = data.data;
 
-  // Deduplicate by deal_id, keep earliest meeting per deal
+  // Keep only activities: linked to a deal + due_date >= today
   const byDeal = new Map<number, UpcomingMeeting>();
   for (const act of activities) {
     if (!act.deal_id) continue;
+    const date: string = act.due_date || '';
+    if (!date || date < today) continue; // skip past or undated
+
     const existing = byDeal.get(act.deal_id);
-    const date = act.due_date || '';
     if (!existing || date < existing.dataReuniao) {
       byDeal.set(act.deal_id, {
         dealId: act.deal_id,
         nomeLead: act.person_name || act.deal_title || `Deal #${act.deal_id}`,
         dataReuniao: date,
-        horaReuniao: act.due_time || '',
+        horaReuniao: act.due_time ? String(act.due_time).slice(0, 5) : '',
       });
     }
   }
 
-  // Sort by date ascending
-  return [...byDeal.values()].sort((a, b) =>
-    a.dataReuniao.localeCompare(b.dataReuniao)
-  );
+  // Sort by date/time ascending
+  return [...byDeal.values()].sort((a, b) => {
+    const d = a.dataReuniao.localeCompare(b.dataReuniao);
+    return d !== 0 ? d : a.horaReuniao.localeCompare(b.horaReuniao);
+  });
 }
