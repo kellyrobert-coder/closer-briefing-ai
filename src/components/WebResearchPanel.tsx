@@ -19,12 +19,16 @@ function PlatformIcon({ name }: { name: string }) {
   return <Link2 className="w-4 h-4" />;
 }
 
-function ConfidenceBadge({ level }: { level: string }) {
+function parseConfidence(level: string) {
   // Split label from detail: "Médio-Baixo — DETALHAMENTO: long text..." → label + detail
   const dashIdx = level.indexOf('—');
   const label = dashIdx >= 0 ? level.slice(0, dashIdx).trim() : level.split(/\s*[-–]\s*/)[0] || level;
-  const detail = dashIdx >= 0 ? level.slice(dashIdx + 1).trim() : '';
+  const detail = dashIdx >= 0 ? level.slice(dashIdx + 1).trim().replace(/^DETALHAMENTO:\s*/i, '') : '';
+  return { label, detail };
+}
 
+function ConfidenceBadge({ level }: { level: string }) {
+  const { label } = parseConfidence(level);
   const l = label.toLowerCase();
   let badgeClass = 'bg-red-500/20 text-red-400 border-red-500/30';
   let emoji = '🔴';
@@ -32,14 +36,9 @@ function ConfidenceBadge({ level }: { level: string }) {
   else if (l.startsWith('méd') || l.startsWith('med')) { badgeClass = 'bg-amber-500/20 text-amber-400 border-amber-500/30'; emoji = '🟡'; }
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${badgeClass} whitespace-nowrap`}>
-        {emoji} {label}
-      </span>
-      {detail && (
-        <p className="text-[11px] text-gray-500 leading-snug max-w-md text-right">{detail}</p>
-      )}
-    </div>
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${badgeClass} whitespace-nowrap`}>
+      {emoji} {label}
+    </span>
   );
 }
 
@@ -126,7 +125,7 @@ export default function WebResearchPanel({ lead }: Props) {
     <div className="space-y-4 animate-fade-in">
       {/* Header: Person identified + confidence */}
       <div className="bg-gray-900 border border-gray-800 rounded-xl p-5">
-        <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             <User className="w-5 h-5 text-cyan-400" />
             <h3 className="font-semibold text-white">Pessoa Identificada</h3>
@@ -142,6 +141,9 @@ export default function WebResearchPanel({ lead }: Props) {
             </button>
           </div>
         </div>
+        {parseConfidence(profile.nivel_confianca).detail && (
+          <p className="text-xs text-gray-500 mb-3 leading-relaxed">{parseConfidence(profile.nivel_confianca).detail}</p>
+        )}
         <p className="text-gray-300 text-sm">{profile.pessoa_identificada}</p>
       </div>
 
