@@ -40,7 +40,8 @@ SOBRE A SEAZONE:
 - Modelo de gestão completa: da captação à manutenção
 - Escritórios em Florianópolis, São Paulo, e outras capitais
 
-Responda EXCLUSIVAMENTE em JSON válido (sem markdown, sem backticks, sem texto fora do JSON) com esta estrutura exata:
+IMPORTANTE: Se algum campo do lead estiver vazio, infere com base no contexto disponível.
+Responda EXCLUSIVAMENTE em JSON válido, sem markdown, sem backticks, sem texto antes ou depois do JSON, com esta estrutura exata:
 {
   "resumo": "Resumo executivo do lead em 2-3 frases",
   "pontos_chave": ["ponto 1", "ponto 2", "ponto 3", "ponto 4", "ponto 5"],
@@ -60,28 +61,40 @@ Responda EXCLUSIVAMENTE em JSON válido (sem markdown, sem backticks, sem texto 
         generationConfig: {
           temperature: 0.7,
           maxOutputTokens: 2048,
+          responseMimeType: 'application/json',
         },
       }),
     }
   );
 
   if (!response.ok) {
-    throw new Error(`Gemini API error: ${response.status}`);
+    const errText = await response.text();
+    throw new Error(`Gemini API error ${response.status}: ${errText.slice(0, 200)}`);
   }
 
   const data = await response.json();
   const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
   if (!text) {
-    throw new Error('No response from Gemini');
+    throw new Error('Resposta vazia do Gemini. Verifique sua chave de API nas Configurações.');
   }
 
-  // Clean up response - remove markdown code blocks if present
-  const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  // Strategy 1: strip markdown fences
+  let cleaned = text
+    .replace(/```json\s*/gi, '')
+    .replace(/```\s*/g, '')
+    .trim();
+
+  // Strategy 2: extract first JSON object if there's surrounding text
+  if (!cleaned.startsWith('{')) {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (match) cleaned = match[0];
+  }
 
   try {
     return JSON.parse(cleaned) as BriefingResult;
   } catch {
-    throw new Error('Failed to parse Gemini response as JSON');
+    console.error('Gemini raw response:', text.slice(0, 500));
+    throw new Error('Erro ao interpretar resposta do Gemini. Tente novamente.');
   }
 }
