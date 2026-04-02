@@ -77,6 +77,17 @@ export default function LeadDetail() {
             || cf['Cidade onde fica o Imóvel']
             || cf['Cidade']
             || data.cidade_onde_fica_o_imovel;
+          // Try custom fields, then fall back to extracting from deal title
+          // Pipedrive deal titles often follow "Lead Name - Empreendimento" pattern
+          let resolvedEmpreendimento = cf['Empreendimento']
+            || cf['empreendimento']
+            || data.empreendimento;
+          if (!resolvedEmpreendimento && data.titulo) {
+            const titleParts = data.titulo.split(/\s*[-–—]\s*/);
+            if (titleParts.length >= 2) {
+              resolvedEmpreendimento = titleParts.slice(1).join(' - ').trim();
+            }
+          }
           // Try to resolve meeting date from custom fields, or fallback to upcoming-meetings.json
           let resolvedReuniao = cf['Data da Reunião']
             || cf['Data da reunião']
@@ -100,6 +111,7 @@ export default function LeadDetail() {
           setLead({
             ...data,
             cidade_onde_fica_o_imovel: resolvedCidade,
+            empreendimento: resolvedEmpreendimento,
             data_da_reuniao: resolvedReuniao,
             notesContent,
             lostDealsHistory,
