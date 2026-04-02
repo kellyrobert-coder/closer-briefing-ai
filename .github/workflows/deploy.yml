@@ -24,7 +24,12 @@ jobs:
           node-version: 20
           cache: 'npm'
       - run: npm ci
-      - run: npm run build
+      - name: Build with API keys
+        env:
+          VITE_PIPEDRIVE_API_KEY: ${{ secrets.VITE_PIPEDRIVE_API_KEY }}
+          VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+          VITE_SERPAPI_KEY: ${{ secrets.VITE_SERPAPI_KEY }}
+        run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ./dist
