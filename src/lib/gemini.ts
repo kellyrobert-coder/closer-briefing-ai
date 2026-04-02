@@ -73,19 +73,30 @@ Responda EXCLUSIVAMENTE em JSON válido, sem markdown, sem backticks, sem texto 
   }
 
   const data = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+  // Gemini 2.5 Flash (thinking model) may return multiple parts:
+  // parts[0] = thinking/reasoning (thought: true), parts[1] = actual response
+  // We want the last non-empty text part that looks like JSON
+  const parts: { text?: string; thought?: boolean }[] =
+    data.candidates?.[0]?.content?.parts ?? [];
+
+  // Find the actual response: prefer last non-thought part, then any part with '{'
+  let text =
+    [...parts].reverse().find((p) => !p.thought && p.text?.includes('{'))?.text ??
+    [...parts].reverse().find((p) => p.text)?.text ??
+    '';
 
   if (!text) {
     throw new Error('Resposta vazia do Gemini. Verifique sua chave de API nas Configurações.');
   }
 
-  // Strategy 1: strip markdown fences
+  // Strip markdown fences if present
   let cleaned = text
     .replace(/```json\s*/gi, '')
     .replace(/```\s*/g, '')
     .trim();
 
-  // Strategy 2: extract first JSON object if there's surrounding text
+  // Extract first JSON object if surrounded by text
   if (!cleaned.startsWith('{')) {
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) cleaned = match[0];
