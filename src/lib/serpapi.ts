@@ -272,77 +272,46 @@ export async function investigateLead(lead: Lead): Promise<{
     ? Object.entries(lead.allCustomFields).filter(([,v]) => v).map(([k,v]) => `- ${k}: ${v}`).join('\n')
     : '';
 
-  const osintPrompt = `Você é um investigador OSINT de elite especializado em perfis de leads para equipes comerciais.
-Sua missão: construir o perfil MAIS COMPLETO possível desta pessoa usando TODAS as pistas disponíveis.
+  const osintPrompt = `Você é um investigador OSINT de elite. Você tem acesso ao Google Search — USE-O ATIVAMENTE para pesquisar sobre esta pessoa.
 
-══════════ DADOS DO LEAD (PIPEDRIVE) ══════════
+══════════ DADOS DO LEAD ══════════
 - Nome no CRM: ${name}
 - Telefone: ${phone || 'Não informado'} ${ddd ? `(DDD ${ddd} = ${dddState || 'estado desconhecido'})` : ''}
 - E-mail: ${email || 'Não informado'}
 - Profissão: ${profissao || 'Não informada'}
 - Localização do imóvel: ${cidade || 'Não informada'}
-- Nacionalidade: ${lead.nacionalidade || 'Não informada'}
-- Estado Civil: ${lead.estado_civil || 'Não informado'}
-${extraFields ? `\nCAMPOS EXTRAS DO PIPEDRIVE:\n${extraFields}` : ''}
+${extraFields ? `\nCAMPOS EXTRAS:\n${extraFields}` : ''}
 
-══════════ ANÁLISE DO EMAIL (PONTO DE ANCORAGEM MAIS IMPORTANTE) ══════════
-- Email: ${email || 'N/A'}
+══════════ ANÁLISE PRÉVIA DO EMAIL ══════════
 - Username: ${emailUser || 'N/A'}
-- Decomposição: partes alfabéticas = [${emailParts.join(', ')}] | dígitos = [${numericParts.join(', ')}]
-- Nomes derivados do email: ${emailDerivedNames.join(' | ') || 'N/A'}
-${inferredAge ? `- 🎂 ${inferredAge}` : '- Sem dígitos que indiquem idade no email'}
+- Decomposição: [${emailParts.join(', ')}] | dígitos: [${numericParts.join(', ')}]
+- Nomes derivados: ${emailDerivedNames.join(' | ') || 'N/A'}
+${inferredAge ? `- ${inferredAge}` : ''}
 - Usernames prováveis: ${uniqueUsernames.join(', ') || 'N/A'}
+- DDD ${ddd || 'N/A'} → Estado: ${dddState || 'N/A'}
 
-ATENÇÃO: O nome no CRM pode estar DIFERENTE do nome real. Exemplos:
-- CRM diz "Maria Saundres" mas o email "srosy712" revela que ela usa "Rosy" e o sobrenome pode ser "Saunders" (com 'e' trocado)
-- Nomes compostos brasileiros: Maria Rosineide → usa "Rosy" no dia a dia
-- SEMPRE considere que o email pode revelar um nome mais preciso que o do CRM
+══════════ RESULTADOS PRÉVIOS DE BUSCA (${allResults.length} resultados) ══════════
+${searchContext || 'Nenhum resultado prévio'}
 
-══════════ VALIDAÇÃO GEOGRÁFICA ══════════
-- DDD: ${ddd || 'N/A'} → Estado: ${dddState || 'N/A'}
-- Cidade do imóvel: ${cidade || 'N/A'}
+══════════ SUA MISSÃO ══════════
 
-══════════ RESULTADOS DAS ${finalQueries.length} BUSCAS (${allResults.length} resultados únicos) ══════════
-${searchContext || 'Nenhum resultado encontrado'}
+PESQUISE ATIVAMENTE no Google sobre esta pessoa. Faça buscas por:
+1. O email "${email}" completo (allintext)
+2. Decomponha "${emailUser}": separe letras de números, teste primeira letra como inicial (ex: "srosy" → "S. Rosy"), compare com nome do CRM
+3. Busque "${name}" e variações derivadas do email (${emailDerivedNames.join(', ')}) no LinkedIn, Instagram, Facebook
+4. Busque "${emailUser}" como username de redes sociais — instagram.com/${emailUser}, facebook.com/${emailUser}
+5. Busque em Escavador, ConsultaSocio, JusBrasil com nome + ${dddState || 'estado'}
+6. Busque o telefone ${phone || ''} em classificados, WhatsApp Business, OLX
+7. O nome do CRM pode estar ERRADO — o email frequentemente revela o nome real
 
-══════════ METODOLOGIA OBRIGATÓRIA (SIGA TODOS OS PASSOS) ══════════
+REGRAS:
+- Faça o MÁXIMO de buscas possível para encontrar informações
+- NÃO diga "não encontrei" sem pesquisar extensivamente
+- Construa hipóteses inteligentes mesmo com poucos dados
+- Foque em informações ÚTEIS para um vendedor que vai entrar numa reunião
+- Números no email (${numericParts.join(', ')}) podem indicar ano de nascimento
 
-1. DECOMPOSIÇÃO PROFUNDA DO EMAIL "${emailUser}":
-   - Separe letras de números: ex. "srosy712" → "srosy" + "712"
-   - Teste a primeira letra como inicial: "srosy" → "S. Rosy" → nome provável "Rosy" com inicial "S" do sobrenome (ou vice-versa)
-   - Números podem indicar: ano nascimento (712→1971? 85→1985?), data especial, ou número aleatório
-   - Compare o nome inferido com o nome do CRM: se o email sugere "Rosy" e o CRM tem "Maria Saundres", pode ser "Maria Rosy Saunders"
-   - EMAILS SÃO A MELHOR PISTA — dedique uma análise profunda
-
-2. VALIDAÇÃO GEOGRÁFICA:
-   - DDD ${ddd || 'N/A'} confirma região (${dddState || '?'}). Use para filtrar homônimos.
-   - Se a cidade do imóvel é diferente do estado do DDD, a pessoa pode morar em outro lugar.
-
-3. IDENTIFICAÇÃO EM REDES SOCIAIS:
-   - "${emailUser}" provavelmente É o username do Instagram/Facebook/Twitter da pessoa
-   - Busque combinações: @${emailUser}, @${uniqueUsernames.slice(0, 3).join(', @')}
-   - Redes de pessoas mais velhas (50+): priorize Facebook. Mais jovens: Instagram.
-   - Se encontrou perfil privado, ainda é valioso — mencione e descreva o que é visível.
-
-4. REGISTROS PROFISSIONAIS E EMPRESARIAIS:
-   - Busque em Escavador, ConsultaSocio, Receita Federal
-   - Use TODAS as variações do nome (CRM e email-derivado)
-   - Identifique profissão, empresas, CNPJ, situação cadastral
-
-5. CRUZAMENTO E SÍNTESE:
-   - Cruze TODAS as fontes para construir o perfil mais completo
-   - Se dois resultados mencionam a mesma pessoa/local/profissão → confiança ALTA
-   - Para cada achado importante, CITE o resultado # como evidência
-
-⚠️ REGRAS ABSOLUTAS:
-- NÃO diga "não foi possível identificar" sem antes TENTAR TODAS as deduções acima
-- MESMO COM POUCOS RESULTADOS, faça inferências inteligentes baseadas no email, DDD, e contexto
-- Se encontrou QUALQUER pista, construa hipóteses a partir dela
-- URLs de redes sociais: construa a URL provável mesmo que não tenha confirmação (ex: instagram.com/${emailUser})
-- Foque no que é ÚTIL para um VENDEDOR que vai entrar numa reunião em minutos
-- Números no email SEMPRE merecem análise (idade, ano, data)
-
-Responda EXCLUSIVAMENTE em JSON válido:
+Responda EXCLUSIVAMENTE em JSON válido (sem markdown, sem backticks, APENAS o JSON):
 {
   "pessoa_identificada": "Nome completo real identificado (pode ser diferente do CRM!) + cargo/profissão + cidade. Ex: 'Maria Rosineide Saunders (Rosy), área de Estética/Vendas, Maceió/AL'. SEMPRE inclua o nome que a pessoa USA no dia a dia entre parênteses se diferente.",
   "nivel_confianca": "Alto|Médio|Baixo — DETALHAMENTO: quantas fontes confirmam, quais cruzamentos foram feitos, o que falta para aumentar a confiança",
@@ -358,6 +327,9 @@ Responda EXCLUSIVAMENTE em JSON válido:
   "resumo_para_closer": "BRIEFING PRÁTICO PARA A REUNIÃO (6-8 frases): 1) Quem é esta pessoa (nome REAL, não o do CRM se for diferente, profissão, cidade/estado). 2) Faixa etária provável (baseada nos dígitos do email ou outros indícios). 3) Perfil financeiro (baseado em profissão/empresas encontradas). 4) Como gerar rapport (interesses das redes sociais, hobbies, estilo de vida). 5) Por que está interessado em imóvel (dados do Pipedrive: temporada, investimento, moradia). 6) Pontos de ATENÇÃO (deals perdidos anteriores, nome diferente no CRM vs real, informações conflitantes). 7) Abordagem recomendada."
 }`;
 
+  // ── STEP 4: Call Gemini WITH Google Search grounding ───────────────────────
+  // This is the key difference vs. direct Gemini queries — enabling native Google Search
+  // lets Gemini search the web itself, just like in the web interface
   const model = 'gemini-2.5-flash';
   const geminiRes = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys.gemini}`,
@@ -366,12 +338,12 @@ Responda EXCLUSIVAMENTE em JSON válido:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: osintPrompt }] }],
+        tools: [{ google_search: {} }],
         generationConfig: {
           temperature: 0.4,
-          maxOutputTokens: 4096,
-          responseMimeType: 'application/json',
-          // Allow some thinking for better OSINT analysis
-          thinkingConfig: { thinkingBudget: 2048 },
+          maxOutputTokens: 8192,
+          // Cannot use responseMimeType with google_search tool — parse JSON manually
+          thinkingConfig: { thinkingBudget: 4096 },
         },
       }),
     }
@@ -390,14 +362,22 @@ Responda EXCLUSIVAMENTE em JSON válido:
   }
 
   const parts = geminiData.candidates?.[0]?.content?.parts ?? [];
-  const text = parts.filter((p: { thought?: boolean }) => !p.thought)
-    .map((p: { text?: string }) => p.text ?? '').join('')
-    || parts.map((p: { text?: string }) => p.text ?? '').join('');
+  // Filter out thinking parts AND function call/response parts (from google_search tool)
+  const textParts = parts.filter((p: { thought?: boolean; text?: string; functionCall?: unknown; functionResponse?: unknown }) =>
+    !p.thought && !p.functionCall && !p.functionResponse && p.text
+  );
+  const text = textParts.map((p: { text?: string }) => p.text ?? '').join('')
+    || parts.filter((p: { text?: string }) => p.text).map((p: { text?: string }) => p.text ?? '').join('');
 
+  // Extract JSON from response (may be wrapped in markdown code blocks)
   let cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
   if (!cleaned.startsWith('{')) {
     const match = cleaned.match(/\{[\s\S]*\}/);
     if (match) cleaned = match[0];
+  }
+
+  if (!cleaned || !cleaned.startsWith('{')) {
+    throw new Error('Gemini não retornou JSON válido. Resposta: ' + text.slice(0, 300));
   }
 
   const profile: OsintProfile = JSON.parse(cleaned);
