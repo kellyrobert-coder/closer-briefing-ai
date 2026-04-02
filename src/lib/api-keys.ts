@@ -2,17 +2,14 @@ import type { ApiKeys } from '../types/lead';
 
 const STORAGE_KEY = 'closer-briefing-api-keys';
 
-// Decode obfuscated key at runtime (prevents Google's secret scanner from revoking keys in public repos)
-const _d = (s: string): string => {
-  try { return atob(s); } catch { return ''; }
-};
-
-// Keys are base64-encoded to avoid automatic revocation by secret scanners
-// Priority: env vars → obfuscated defaults → empty
+// Keys come ONLY from:
+// 1. Vite env vars (injected at build time via GitHub Secrets)
+// 2. User-configured keys in localStorage (Settings panel)
+// NO hardcoded keys in source code — Google's secret scanner revokes them
 const ENV_KEYS: ApiKeys = {
-  gemini: import.meta.env.VITE_GEMINI_API_KEY || _d('QUl6YVN5QThFUXNDWkdzc1pKN25oRUZyU1locUZmZEtNMThzRmZr'),
-  serpapi: import.meta.env.VITE_SERPAPI_KEY || _d('ZmY1YTU3ZDI5YTYzZjg4OWFjMThlZTI1MDNhNzIzMzE4YTYwNTM5Y2UxN2JiMTdjZWVmMTUyMjA5NTQzMGU3Mg=='),
-  pipedrive: import.meta.env.VITE_PIPEDRIVE_API_KEY || _d('MTIzMzkxODAyMzVkMTA3M2M1Y2RkMGZlZTczMDM1NGRhNTFmYjk0Yw=='),
+  gemini: import.meta.env.VITE_GEMINI_API_KEY || '',
+  serpapi: import.meta.env.VITE_SERPAPI_KEY || '',
+  pipedrive: import.meta.env.VITE_PIPEDRIVE_API_KEY || '',
 };
 
 export function getApiKeys(): ApiKeys {
