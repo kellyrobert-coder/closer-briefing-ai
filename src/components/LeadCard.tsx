@@ -25,9 +25,9 @@ export default function LeadCard({ lead }: Props) {
             </div>
             <div>
               <h3 className="font-semibold text-white group-hover:text-orange-400 transition-colors">
-                {lead.nome_investidor}
+                {lead.nome_investidor || lead.titulo}
               </h3>
-              <p className="text-sm text-gray-400">{lead.profissao || 'Investidor'}</p>
+              <p className="text-sm text-gray-400">{lead.profissao || lead.canal || 'Investidor'}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">

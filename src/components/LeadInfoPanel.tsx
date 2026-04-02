@@ -41,7 +41,7 @@ export default function LeadInfoPanel({ lead }: Props) {
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-xl font-bold text-white">{lead.nome_investidor}</h2>
+              <h2 className="text-xl font-bold text-white">{lead.nome_investidor || lead.titulo}</h2>
               <span className={`text-xs px-2.5 py-1 rounded-full text-white ${getStatusColor(lead.score)}`}>
                 {getStatusLabel(lead.score)}
               </span>

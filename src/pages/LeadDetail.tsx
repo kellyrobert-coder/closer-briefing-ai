@@ -4,18 +4,31 @@ import Header from '../components/Header';
 import LeadInfoPanel from '../components/LeadInfoPanel';
 import BriefingPanel from '../components/BriefingPanel';
 import WebResearchPanel from '../components/WebResearchPanel';
-import { realLeads } from '../lib/leads-data';
-import { Sparkles, Globe, User, AlertTriangle } from 'lucide-react';
+import { useLeads } from '../contexts/LeadsContext';
+import { Sparkles, Globe, User, AlertTriangle, Loader2 } from 'lucide-react';
 
 type Tab = 'briefing' | 'research' | 'info';
 
 export default function LeadDetail() {
   const { id } = useParams<{ id: string }>();
+  const { leads, loading } = useLeads();
   const [activeTab, setActiveTab] = useState<Tab>('info');
 
   const lead = useMemo(() => {
-    return realLeads.find((l) => l.id === Number(id));
-  }, [id]);
+    return leads.find((l) => l.id === Number(id));
+  }, [id, leads]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-950">
+        <Header />
+        <div className="flex items-center justify-center py-20 gap-3 text-gray-400">
+          <Loader2 className="w-6 h-6 animate-spin text-orange-400" />
+          <span>Carregando dados do lead...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (!lead) {
     return (
