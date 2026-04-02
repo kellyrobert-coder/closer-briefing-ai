@@ -55,18 +55,61 @@ export async function investigateLead(lead: Lead): Promise<{
   if (!keys.gemini) throw new Error('Chave da Gemini não configurada.');
 
   const name = lead.nome_investidor;
-  const ddd = lead.telefone ? lead.telefone.replace(/\D/g, '').slice(0, 4) : '';
+  const email = lead.e_mail || '';
+  const phone = lead.telefone || '';
+  const ddd = phone.replace(/\D/g, '').slice(0, 4);
   const cidade = lead.cidade_onde_fica_o_imovel || '';
+  const profissao = lead.profissao || '';
 
-  // Multiple targeted searches in parallel
-  const queries = [
-    `"${name}" LinkedIn`,
-    `"${name}" Instagram OR Facebook`,
-    `"${name}" ${lead.profissao || cidade || 'investidor'}`,
-    `"${name}" CNPJ OR empresa OR sócio`,
-  ];
+  // Extract username from email (e.g. "petra.n.r.lins" from "petra.n.r.lins@gmail.com")
+  const emailUser = email.split('@')[0] || '';
+  // Try to infer full name from email if name is short
+  const emailNameHint = emailUser.replace(/[._]/g, ' ').replace(/\d+/g, '').trim();
 
-  const searchPromises = queries.map((q) =>
+  // Build comprehensive search queries using ALL available data
+  const queries: string[] = [];
+
+  // Core identity searches
+  queries.push(`"${name}" LinkedIn`);
+  queries.push(`"${name}" Instagram OR Facebook`);
+
+  // Email-based searches (critical for OSINT)
+  if (email) {
+    queries.push(`"${email}"`);
+    if (emailUser.length > 4) {
+      queries.push(`"${emailUser}" site:linkedin.com OR site:instagram.com OR site:facebook.com`);
+    }
+  }
+
+  // Professional / CNPJ searches
+  if (profissao) {
+    queries.push(`"${name}" ${profissao} ${cidade}`);
+  }
+  queries.push(`"${name}" CNPJ OR sócio OR empresa site:escavador.com OR site:jusbrasil.com.br OR site:consultasocio.com`);
+
+  // Location-based refinement
+  if (cidade || ddd) {
+    queries.push(`"${name}" ${cidade || ''} ${ddd ? 'DDD ' + ddd.slice(0, 2) : ''} advogado OR empresário OR investidor OR profissional`.trim());
+  }
+
+  // Phone-based searches (can reveal profiles, WhatsApp business, etc.)
+  if (phone) {
+    const digits = phone.replace(/\D/g, '');
+    // Search the phone number directly — can find WhatsApp business, classified ads, registrations
+    if (digits.length >= 10) {
+      queries.push(`"${digits}" OR "${digits.slice(-11)}" OR "${digits.slice(-9)}"`);
+    }
+  }
+
+  // If email suggests a different/fuller name, search that too
+  if (emailNameHint && emailNameHint.toLowerCase() !== name.toLowerCase() && emailNameHint.split(' ').length >= 2) {
+    queries.push(`"${emailNameHint}" LinkedIn OR Instagram`);
+  }
+
+  // Limit to 8 parallel queries to balance depth vs rate limits
+  const finalQueries = queries.slice(0, 8);
+
+  const searchPromises = finalQueries.map((q) =>
     searchWeb(q).catch(() => [] as WebResearchResult[])
   );
   const searchResults = await Promise.all(searchPromises);
@@ -88,42 +131,58 @@ export async function investigateLead(lead: Lead): Promise<{
     .map((r, i) => `[${i + 1}] ${r.title}\n    URL: ${r.link}\n    ${r.snippet}`)
     .join('\n\n');
 
-  const osintPrompt = `Você é um especialista em OSINT (Open Source Intelligence) e análise de dados públicos.
-Analise os resultados de busca abaixo e organize as informações encontradas sobre esta pessoa.
+  // All custom fields from Pipedrive for extra context
+  const extraFields = lead.allCustomFields
+    ? Object.entries(lead.allCustomFields).filter(([,v]) => v).map(([k,v]) => `- ${k}: ${v}`).join('\n')
+    : '';
+
+  const osintPrompt = `Atue como um especialista em OSINT (Open Source Intelligence) e análise de dados públicos.
+Investigue o perfil abaixo e organize as informações encontradas de forma estruturada.
 
 🔎 DADOS DISPONÍVEIS DO PIPEDRIVE:
 - Nome Completo: ${name}
-- Telefone/DDD: ${lead.telefone || 'Não informado'}
-- E-mail: ${lead.e_mail || 'Não informado'}
+- Telefone/DDD: ${phone || 'Não informado'}
+- E-mail: ${email || 'Não informado'}
+- Username do email: ${emailUser || 'N/A'}
+- Possível nome completo inferido do email: ${emailNameHint || 'N/A'}
 - Localização Provável: ${cidade || 'Não informada'}
-- Profissão: ${lead.profissao || 'Não informada'}
+- Profissão: ${profissao || 'Não informada'}
 - Nacionalidade: ${lead.nacionalidade || 'Não informada'}
+- Estado Civil: ${lead.estado_civil || 'Não informado'}
+${extraFields ? `\nCAMPOS EXTRAS DO PIPEDRIVE:\n${extraFields}` : ''}
 
-📋 RESULTADOS DA BUSCA WEB:
-${searchContext || 'Nenhum resultado encontrado'}
+🌐 OBJETIVO: Cruzar os dados acima para encontrar:
+1. Presença Digital: LinkedIn, Instagram, Facebook e portfólios profissionais.
+2. Vida Profissional: Cargo atual, empresa e trajetória.
+3. Contexto Público: Informações em portais de transparência, registros de empresas (CNPJ), Escavador, JusBrasil, publicações acadêmicas/oficiais.
+
+📋 RESULTADOS DA BUSCA WEB (${allResults.length} resultados):
+${searchContext || 'Nenhum resultado encontrado nas buscas'}
 
 ⚠️ REGRAS:
+- O EMAIL é uma pista crucial: analise o username (${emailUser}) para inferir nome completo, iniciais, sobrenomes
 - Diferencie informações CONFIRMADAS de SUPOSIÇÕES
-- Se houver homônimos, escolha o mais provável baseado no DDD (${ddd}), cidade (${cidade}) ou profissão
-- Cite a origem de cada informação (ex: "encontrado via LinkedIn", "resultado #3")
-- Se não encontrar um perfil em alguma rede, diga "Não encontrado"
+- Se houver homônimos, liste as opções mais prováveis com base no DDD (${ddd}), cidade (${cidade}) ou profissão
+- Cite a origem da informação (ex: "encontrado via bio do Instagram", "resultado #3")
 - Para redes sociais, SEMPRE inclua a URL completa se disponível nos resultados
-- Foque em informações úteis para um vendedor que vai fazer uma reunião com esta pessoa
+- Se não encontrar um perfil, explique o que foi buscado e por que não foi encontrado
+- Cruze informações entre diferentes fontes para aumentar a confiança
+- Foque em informações úteis para um vendedor (closer) que vai fazer uma reunião de vendas com esta pessoa
 
 Responda EXCLUSIVAMENTE em JSON válido:
 {
-  "pessoa_identificada": "Nome completo e breve descrição (cargo, empresa)",
-  "nivel_confianca": "Alto|Médio|Baixo - justificativa breve",
+  "pessoa_identificada": "Nome completo identificado + breve descrição (cargo, empresa, cidade)",
+  "nivel_confianca": "Alto|Médio|Baixo - justificativa detalhada de por que este nível (mencione as evidências que confirmam ou não)",
   "redes_sociais": [
-    {"plataforma": "LinkedIn", "url": "URL ou vazio", "descricao": "Cargo, empresa, resumo do perfil"},
-    {"plataforma": "Instagram", "url": "URL ou vazio", "descricao": "Tipo de conteúdo, seguidores se visível"},
-    {"plataforma": "Facebook", "url": "URL ou vazio", "descricao": "Informações relevantes"}
+    {"plataforma": "LinkedIn", "url": "URL completa ou vazio se não encontrado", "descricao": "Cargo, empresa, resumo do perfil, ou explicação de por que não foi encontrado"},
+    {"plataforma": "Instagram", "url": "URL completa ou vazio", "descricao": "Username, tipo de conteúdo, observações relevantes"},
+    {"plataforma": "Facebook", "url": "URL completa ou vazio", "descricao": "Informações relevantes do perfil"}
   ],
-  "historico_profissional": "Resumo da trajetória profissional encontrada (2-3 frases)",
-  "empresas_cnpj": "Empresas onde é sócio/dono ou trabalha, se encontrado",
-  "contexto_publico": "Informações relevantes de portais públicos, notícias, publicações",
-  "evidencias": ["evidência 1 com fonte", "evidência 2 com fonte"],
-  "resumo_para_closer": "Resumo prático de 3-4 frases para o closer usar na reunião: quem é essa pessoa, o que faz, como abordar, pontos de conexão"
+  "historico_profissional": "Resumo detalhado da trajetória profissional: formação, empresas, cargos, área de atuação (3-5 frases)",
+  "empresas_cnpj": "Empresas onde aparece como sócio/dono, registros no Escavador, CNPJ vinculados. Se não encontrado, diga explicitamente.",
+  "contexto_publico": "Informações de portais públicos, diários oficiais, JusBrasil, notícias, publicações acadêmicas, processos judiciais mencionados",
+  "evidencias": ["evidência 1 (fonte: resultado #X ou nome do site)", "evidência 2", "evidência 3"],
+  "resumo_para_closer": "Resumo prático de 4-5 frases para o closer usar na reunião: quem é essa pessoa, qual sua profissão e renda provável, como abordar, pontos de conexão pessoal, e qualquer informação que ajude a gerar rapport e fechar a venda"
 }`;
 
   const model = 'gemini-2.5-flash';
@@ -135,10 +194,11 @@ Responda EXCLUSIVAMENTE em JSON válido:
       body: JSON.stringify({
         contents: [{ parts: [{ text: osintPrompt }] }],
         generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 2048,
+          temperature: 0.4,
+          maxOutputTokens: 4096,
           responseMimeType: 'application/json',
-          thinkingConfig: { thinkingBudget: 0 },
+          // Allow some thinking for better OSINT analysis
+          thinkingConfig: { thinkingBudget: 2048 },
         },
       }),
     }
