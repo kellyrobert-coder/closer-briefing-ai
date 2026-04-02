@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import type { Lead, BriefingResult } from '../types/lead';
 import { generateBriefing } from '../lib/gemini';
+import { buildHistoricalData, type HistoricalData } from '../lib/historical';
+import HistoricalPanel from './HistoricalPanel';
+import { getApiKeys } from '../lib/api-keys';
 import {
   Sparkles, AlertTriangle, Target, MessageSquare,
   TrendingUp, Loader2, RefreshCw
@@ -12,6 +15,7 @@ interface Props {
 
 export default function BriefingPanel({ lead }: Props) {
   const [briefing, setBriefing] = useState<BriefingResult | null>(null);
+  const [historicalData, setHistoricalData] = useState<HistoricalData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,7 +23,11 @@ export default function BriefingPanel({ lead }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const result = await generateBriefing(lead);
+      const apiToken = getApiKeys().pipedrive;
+      // Fetch historical data in parallel with briefing prompt build
+      const historical = await buildHistoricalData(lead, apiToken).catch(() => null);
+      setHistoricalData(historical);
+      const result = await generateBriefing(lead, historical?.summaryText);
       setBriefing(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao gerar briefing');
@@ -171,6 +179,9 @@ export default function BriefingPanel({ lead }: Props) {
           </ul>
         </div>
       </div>
+
+      {/* Historical Analysis */}
+      {historicalData && <HistoricalPanel data={historicalData} />}
     </div>
   );
 }

@@ -49,6 +49,20 @@ const F = {
   LINK_CONVERSA:     '3dda4dab1781dcfd8839a5fd6c0b7d5e7acfbcfc',
   LINK_REUNIAO_MIA:  '3d168fb538411d700912d494cb3ae7d813e2976b',
   AGENTE:            '5c17a4095b6d252c358bc3764f2b72534cfe3566',
+  // MIA / Cadência fields
+  RESPONDEU_MIA:     '34336364766f24e1b2fdb25beec9c87856f3ade3',
+  STEP_CADENCIA:     '90db11111ad88f60a3346d04df252660832285ec',
+  DATA_ULT_CADENCIA: '85b830218feefa6ab8f7186f053a2d84b1b0bd2e',
+  HORA_ULT_CADENCIA: '166c494761ff67648f584bc0f27c6e031d6dfb86',
+  ETAPA_FINAL_CAD:   '3fc8446ad245714794555cd9dcc9311409cdece2',
+  PULAR_CADENCIA:    '5502ecbc173d31de563ecb294e5f04e1394091e6',
+  RD_CAMPANHA:       'e446c37fb126d0a122ae3a1d2f6a5b5716038731',
+  PREDIO_B2B:        '03fd3594ff0804d2b16d5410c2fc1552c5dd24c9',
+  STATUS_REUNIAO:    '658f16abb8e4d9ca1c4426664a48e9a82c390bb5',
+  MOTIVO_LOST_MIA:   'bf0e5193f43a49b36990c4ea88c91e01d0858592',
+  HORA_REUNIAO_MIA:  '06ae369dd850925f3ae29678619ac0cdbf265d24',
+  DATA_REUNIAO_MIA:  '7d1c61f8b0ff7adb622a5fe24a923d4491e16001',
+  CIDADE_MIA:        'c470e77592aace667105d682c28007d10bf429b0',
 };
 
 // ─── Enum option maps ─────────────────────────────────────────────────────────
@@ -104,6 +118,23 @@ const EMPREENDIMENTO: Record<string, string> = {
   '3416': 'Caraguá Spot', '3451': 'Bonito Spot II', '3478': 'Barra Grande Spot',
   '3533': 'Ponta das Canas Spot II', '3594': 'Rosa Sul Spot II', '3641': 'Foz Spot II',
   '4090': 'Canas Beach Spot',
+};
+
+const STATUS_REUNIAO: Record<string, string> = {
+  '4281': 'Confirmada',
+  '4282': 'Reagendada',
+  '4283': 'Cancelada',
+  '4299': 'Reagendado - No Show',
+};
+
+const ETAPA_FINAL_CAD: Record<string, string> = {
+  '4830': 'Lost',
+  '4831': 'Transbordo',
+};
+
+const PREDIO_B2B: Record<string, string> = {
+  '4229': 'Sim',
+  '4230': 'Não',
 };
 
 // ─── Type definitions ─────────────────────────────────────────────────────────
@@ -429,6 +460,117 @@ export async function searchDeals(term: string, apiToken: string): Promise<Lead[
   if (!data.success) throw new Error('Pipedrive: ' + (data.error || 'Erro desconhecido'));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return (data.data?.items || []).map((i: any) => searchItemToLead(i.item));
+}
+
+export function getDealMiaFields(deal: Record<string, unknown>): Record<string, string> {
+  return {
+    respondeu_mia: str(deal[F.RESPONDEU_MIA]),
+    step_cadencia: str(deal[F.STEP_CADENCIA]),
+    data_ultima_cadencia: str(deal[F.DATA_ULT_CADENCIA]),
+    hora_ultima_cadencia: str(deal[F.HORA_ULT_CADENCIA]),
+    etapa_final_cadencia: enumVal(ETAPA_FINAL_CAD, deal[F.ETAPA_FINAL_CAD]),
+    pular_cadencia: str(deal[F.PULAR_CADENCIA]),
+    rd_campanha: str(deal[F.RD_CAMPANHA]),
+    predio_b2b: enumVal(PREDIO_B2B, deal[F.PREDIO_B2B]),
+    status_reuniao: enumVal(STATUS_REUNIAO, deal[F.STATUS_REUNIAO]),
+    motivo_lost_mia: str(deal[F.MOTIVO_LOST_MIA]),
+    link_conversa: str(deal[F.LINK_CONVERSA]),
+    hora_reuniao_mia: str(deal[F.HORA_REUNIAO_MIA]),
+    data_reuniao_mia: str(deal[F.DATA_REUNIAO_MIA]),
+    cidade_mia: str(deal[F.CIDADE_MIA]),
+    agente: str(deal[F.AGENTE]),
+  };
+}
+
+// ─── Flow / Changelog API ────────────────────────────────────────────────────
+export interface FlowEntry {
+  object: string;
+  timestamp: string;
+  fieldKey: string;
+  oldValue: string;
+  newValue: string;
+  userName: string;
+  action: string;
+  subject: string;
+}
+
+export async function fetchDealFlow(dealId: number, apiToken: string): Promise<FlowEntry[]> {
+  const url = `${BASE}/deals/${dealId}/flow?limit=100&api_token=${apiToken}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Pipedrive flow API ${res.status}`);
+  const data = await res.json();
+  if (!data.success) return [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data.data || []).map((e: any) => ({
+    object: e.object || '',
+    timestamp: e.timestamp || '',
+    fieldKey: e.data?.field_key || '',
+    oldValue: String(e.data?.old_value ?? ''),
+    newValue: String(e.data?.new_value ?? ''),
+    userName: e.data?.user?.name || e.data?.creator_user?.name || '',
+    action: e.data?.action || '',
+    subject: e.data?.subject || '',
+  }));
+}
+
+// ─── Activities API ──────────────────────────────────────────────────────────
+export interface DealActivityItem {
+  id: number;
+  subject: string;
+  type: string;
+  dueDate: string;
+  addTime: string;
+  done: boolean;
+  markedAsDoneTime: string;
+  ownerName: string;
+  note: string;
+}
+
+export async function fetchDealActivities(dealId: number, apiToken: string): Promise<DealActivityItem[]> {
+  const url = `${BASE}/deals/${dealId}/activities?limit=100&api_token=${apiToken}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Pipedrive activities API ${res.status}`);
+  const data = await res.json();
+  if (!data.success) return [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (data.data || []).map((a: any) => ({
+    id: a.id,
+    subject: a.subject || '',
+    type: a.type || '',
+    dueDate: a.due_date || '',
+    addTime: a.add_time || '',
+    done: !!a.done,
+    markedAsDoneTime: a.marked_as_done_time || '',
+    ownerName: a.owner_name || '',
+    note: (a.note || '').replace(/<[^>]*>/g, ''),
+  }));
+}
+
+// ─── Users cache (for resolving user IDs in flow) ────────────────────────────
+let usersCache: Map<string, string> | null = null;
+
+export async function fetchUsers(apiToken: string): Promise<Map<string, string>> {
+  if (usersCache) return usersCache;
+  const url = `${BASE}/users?limit=500&api_token=${apiToken}`;
+  const res = await fetch(url);
+  if (!res.ok) return new Map();
+  const data = await res.json();
+  usersCache = new Map();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (data.data || []).forEach((u: any) => {
+    usersCache!.set(String(u.id), u.name || '');
+  });
+  return usersCache;
+}
+
+// ─── Raw deal fetch (for MIA fields) ─────────────────────────────────────────
+export async function fetchDealRaw(id: number, apiToken: string): Promise<Record<string, unknown>> {
+  const url = `${BASE}/deals/${id}?api_token=${apiToken}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Pipedrive API ${res.status}`);
+  const data = await res.json();
+  if (!data.success) throw new Error('Pipedrive: ' + (data.error || 'Erro'));
+  return data.data;
 }
 
 export async function fetchDeal(id: number, apiToken: string): Promise<Lead & { _rawPersonId?: number }> {

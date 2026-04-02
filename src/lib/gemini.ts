@@ -1,7 +1,7 @@
 import type { Lead, BriefingResult } from '../types/lead';
 import { getApiKeys } from './api-keys';
 
-export async function generateBriefing(lead: Lead): Promise<BriefingResult> {
+export async function generateBriefing(lead: Lead, historicalSummary?: string): Promise<BriefingResult> {
   const keys = getApiKeys();
   const apiKey = keys.gemini;
 
@@ -50,10 +50,13 @@ ${customFieldsText}
 ` : ''}ANOTAÇÕES DO DEAL (mais recentes primeiro):
 ${notesText}
 
-HISTÓRICO COM A SEAZONE:
+HISTÓRICO COM A SEAZONE (DEALS ANTERIORES):
 ${historyText}
 
-SOBRE A SEAZONE:
+${historicalSummary ? `HISTÓRICO COMPLETO DO DEAL (CHANGELOG, ATIVIDADES, CADÊNCIAS, TRANSBORDO):
+${historicalSummary}
+
+` : ''}SOBRE A SEAZONE:
 - Gestão profissional de imóveis de temporada (short-stay)
 - Rentabilidade média de 8-12% ao ano
 - Mais de 2.000 imóveis sob gestão em todo o Brasil
@@ -61,7 +64,9 @@ SOBRE A SEAZONE:
 - Escritórios em Florianópolis, São Paulo, e outras capitais
 
 INSTRUÇÕES IMPORTANTES:
+- O RESUMO EXECUTIVO deve ser COMPLETO e DETALHADO (4-6 frases): incluir quem é o lead, como chegou, o que a MIA descobriu na conversa, como foi o atendimento (cadências, transbordo, ligações), e a situação atual. Use dados reais das notas e do histórico.
 - ANALISE PROFUNDAMENTE as anotações do deal — elas contêm dados valiosos da qualificação da MIA (Morada AI): tipo de imóvel, endereço, área, número de quartos, mobília, ar-condicionado, objetivo do investimento, orçamento, prazo, etc.
+- Se o HISTÓRICO COMPLETO DO DEAL estiver disponível, USE-O para enriquecer o resumo: mencione quantas cadências foram feitas, se houve transbordo, quantas ligações/emails foram tentados, e quem atendeu o lead em cada etapa.
 - Se existem deals perdidos anteriores, analise POR QUE foram perdidos e COMO abordar diferente desta vez — isto é CRÍTICO para o closer
 - NÃO seja genérico: use o NOME do lead, o EMPREENDIMENTO específico, a CIDADE, o VALOR, e todos os dados disponíveis nas suas respostas
 - Se o email do lead sugere informações (domínio corporativo, números que indicam idade), USE essa informação
@@ -70,7 +75,7 @@ INSTRUÇÕES IMPORTANTES:
 - Se algum campo do lead estiver vazio, infere com base no contexto disponível (notas, email, telefone DDD, título do deal)
 - Responda EXCLUSIVAMENTE em JSON válido, sem markdown, sem backticks, sem texto antes ou depois do JSON, com esta estrutura exata:
 {
-  "resumo": "Resumo executivo do lead em 2-3 frases",
+  "resumo": "Resumo executivo COMPLETO do lead em 4-6 frases, incluindo histórico de atendimento, dados da conversa MIA e situação atual",
   "pontos_chave": ["ponto 1", "ponto 2", "ponto 3", "ponto 4", "ponto 5"],
   "estrategia_abordagem": "Estratégia detalhada de abordagem para esta reunião em 3-4 frases",
   "perguntas_sugeridas": ["pergunta 1", "pergunta 2", "pergunta 3", "pergunta 4"],
@@ -88,7 +93,7 @@ INSTRUÇÕES IMPORTANTES:
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 3072,
+          maxOutputTokens: 4096,
           responseMimeType: 'application/json',
           thinkingConfig: { thinkingBudget: 1024 },
         },
