@@ -327,60 +327,105 @@ Responda EXCLUSIVAMENTE em JSON válido (sem markdown, sem backticks, APENAS o J
   "resumo_para_closer": "BRIEFING PRÁTICO PARA A REUNIÃO (6-8 frases): 1) Quem é esta pessoa (nome REAL, não o do CRM se for diferente, profissão, cidade/estado). 2) Faixa etária provável (baseada nos dígitos do email ou outros indícios). 3) Perfil financeiro (baseado em profissão/empresas encontradas). 4) Como gerar rapport (interesses das redes sociais, hobbies, estilo de vida). 5) Por que está interessado em imóvel (dados do Pipedrive: temporada, investimento, moradia). 6) Pontos de ATENÇÃO (deals perdidos anteriores, nome diferente no CRM vs real, informações conflitantes). 7) Abordagem recomendada."
 }`;
 
-  // ── STEP 4: Call Gemini WITH Google Search grounding ───────────────────────
-  // This is the key difference vs. direct Gemini queries — enabling native Google Search
-  // lets Gemini search the web itself, just like in the web interface
+  // ── STEP 4: Call Gemini WITH Google Search grounding (with auto-retry) ─────
+  // Enabling native Google Search lets Gemini search the web itself
   const model = 'gemini-2.5-flash';
-  const geminiRes = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys.gemini}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: osintPrompt }] }],
-        tools: [{ google_search: {} }],
-        generationConfig: {
-          temperature: 0.4,
-          maxOutputTokens: 8192,
-          // Cannot use responseMimeType with google_search tool — parse JSON manually
-          thinkingConfig: { thinkingBudget: 4096 },
-        },
-      }),
+  const MAX_RETRIES = 2;
+
+  const callGemini = async (): Promise<OsintProfile> => {
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${keys.gemini}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: osintPrompt }] }],
+          tools: [{ google_search: {} }],
+          generationConfig: {
+            temperature: 0.4,
+            maxOutputTokens: 8192,
+            thinkingConfig: { thinkingBudget: 4096 },
+          },
+        }),
+      }
+    );
+
+    if (!geminiRes.ok) {
+      const errText = await geminiRes.text();
+      throw new Error(`Gemini API error ${geminiRes.status}: ${errText.slice(0, 200)}`);
     }
-  );
 
-  if (!geminiRes.ok) {
-    const errText = await geminiRes.text();
-    throw new Error(`Gemini API error ${geminiRes.status}: ${errText.slice(0, 200)}`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const geminiData: any = await geminiRes.json();
+
+    if (geminiData.error) {
+      throw new Error(`Gemini: ${geminiData.error.message || 'Erro desconhecido'}`);
+    }
+
+    const parts = geminiData.candidates?.[0]?.content?.parts ?? [];
+    // Filter out thinking parts AND function call/response parts (from google_search tool)
+    const textParts = parts.filter((p: { thought?: boolean; text?: string; functionCall?: unknown; functionResponse?: unknown }) =>
+      !p.thought && !p.functionCall && !p.functionResponse && p.text
+    );
+    const text = textParts.map((p: { text?: string }) => p.text ?? '').join('')
+      || parts.filter((p: { text?: string }) => p.text).map((p: { text?: string }) => p.text ?? '').join('');
+
+    // Extract JSON from response — robust multi-strategy parsing
+    let cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+
+    // Strategy 1: Text starts with {
+    if (!cleaned.startsWith('{')) {
+      // Strategy 2: Find last complete JSON object (Gemini sometimes adds text after JSON)
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (match) cleaned = match[0];
+    }
+
+    // Strategy 3: Try to fix truncated JSON (missing closing braces)
+    if (cleaned.startsWith('{') && !cleaned.endsWith('}')) {
+      const openBraces = (cleaned.match(/\{/g) || []).length;
+      const closeBraces = (cleaned.match(/\}/g) || []).length;
+      const missing = openBraces - closeBraces;
+      if (missing > 0 && missing <= 3) {
+        cleaned += '}'.repeat(missing);
+      }
+    }
+
+    // Strategy 4: Try to fix common JSON issues
+    if (cleaned.startsWith('{')) {
+      // Remove trailing commas before closing braces/brackets
+      cleaned = cleaned.replace(/,\s*([\]}])/g, '$1');
+      // Fix unescaped newlines inside string values
+      cleaned = cleaned.replace(/(?<=":[\s]*"[^"]*)\n(?=[^"]*")/g, '\\n');
+    }
+
+    if (!cleaned || !cleaned.startsWith('{')) {
+      throw new Error('JSON_PARSE_FAIL:' + text.slice(0, 500));
+    }
+
+    return JSON.parse(cleaned) as OsintProfile;
+  };
+
+  // Auto-retry on JSON parse failures
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const profile = await callGemini();
+      return { rawResults: allResults, profile };
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // Only retry on JSON parse failures, not API errors
+      if (!lastError.message.startsWith('JSON_PARSE_FAIL:') || attempt === MAX_RETRIES) {
+        break;
+      }
+      // Brief pause before retry
+      await new Promise((r) => setTimeout(r, 1000));
+    }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const geminiData: any = await geminiRes.json();
-
-  if (geminiData.error) {
-    throw new Error(`Gemini: ${geminiData.error.message || 'Erro desconhecido'}`);
+  // If all retries failed, throw with user-friendly message
+  const msg = lastError?.message || '';
+  if (msg.startsWith('JSON_PARSE_FAIL:')) {
+    throw new Error('Gemini não retornou JSON válido após ' + (MAX_RETRIES + 1) + ' tentativas. Resposta: ' + msg.slice(16, 300));
   }
-
-  const parts = geminiData.candidates?.[0]?.content?.parts ?? [];
-  // Filter out thinking parts AND function call/response parts (from google_search tool)
-  const textParts = parts.filter((p: { thought?: boolean; text?: string; functionCall?: unknown; functionResponse?: unknown }) =>
-    !p.thought && !p.functionCall && !p.functionResponse && p.text
-  );
-  const text = textParts.map((p: { text?: string }) => p.text ?? '').join('')
-    || parts.filter((p: { text?: string }) => p.text).map((p: { text?: string }) => p.text ?? '').join('');
-
-  // Extract JSON from response (may be wrapped in markdown code blocks)
-  let cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-  if (!cleaned.startsWith('{')) {
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (match) cleaned = match[0];
-  }
-
-  if (!cleaned || !cleaned.startsWith('{')) {
-    throw new Error('Gemini não retornou JSON válido. Resposta: ' + text.slice(0, 300));
-  }
-
-  const profile: OsintProfile = JSON.parse(cleaned);
-
-  return { rawResults: allResults, profile };
+  throw lastError!;
 }

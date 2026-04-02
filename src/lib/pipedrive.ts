@@ -162,7 +162,18 @@ function extractPersonPhone(personId: unknown): string {
   const p = personId as { phone?: { value: string; primary?: boolean }[] };
   const phones = p.phone || [];
   const primary = phones.find((ph) => ph.primary);
-  return (primary || phones[0])?.value || '';
+  let phone = (primary || phones[0])?.value || '';
+  // Normalize: ensure Brazilian phones have +55 prefix
+  if (phone) {
+    const digits = phone.replace(/\D/g, '');
+    // If 10-11 digits without country code, add +55
+    if (digits.length === 10 || digits.length === 11) {
+      phone = '+55' + digits;
+    } else if (digits.length === 12 || digits.length === 13) {
+      if (!phone.startsWith('+')) phone = '+' + digits;
+    }
+  }
+  return phone;
 }
 
 function preVendedorName(val: unknown): string {
@@ -171,6 +182,23 @@ function preVendedorName(val: unknown): string {
     return (val as { name?: string }).name || '';
   }
   return str(val);
+}
+
+// ─── Deduplicate name parts (fix CRM data issues) ──────────────────────────
+// "LEIANDRA FERNANDES CAVALCANTE DE OLIVEIRA CAVALCANTE DE OLIVEIRA" → remove duplicate suffix
+function deduplicateName(name: string): string {
+  if (!name) return name;
+  const words = name.split(/\s+/);
+  if (words.length < 4) return name;
+  // Check if the second half repeats the first half
+  for (let splitAt = Math.floor(words.length / 2); splitAt >= 2; splitAt--) {
+    const suffix = words.slice(-splitAt).join(' ').toLowerCase();
+    const beforeSuffix = words.slice(-(splitAt * 2), -splitAt).join(' ').toLowerCase();
+    if (suffix === beforeSuffix) {
+      return words.slice(0, -splitAt).join(' ');
+    }
+  }
+  return name;
 }
 
 // ─── Main mapping: raw Pipedrive deal → Lead ──────────────────────────────────
@@ -187,10 +215,12 @@ function dealToLead(deal: Record<string, any>): Lead {
   const email = personEmail || customEmail;
 
   // Name: prefer custom field, then person name, then title
-  const nomeInvestidor =
+  // Also fix duplicated name parts (e.g. "CAVALCANTE DE OLIVEIRA CAVALCANTE DE OLIVEIRA")
+  const rawName =
     str(deal[F.NOME_INVESTIDOR]) ||
     (deal.person_id as { name?: string } | null)?.name ||
     str(deal.title);
+  const nomeInvestidor = deduplicateName(rawName);
 
   return {
     id: deal.id,

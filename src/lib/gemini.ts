@@ -61,10 +61,13 @@ SOBRE A SEAZONE:
 - Escritórios em Florianópolis, São Paulo, e outras capitais
 
 INSTRUÇÕES IMPORTANTES:
-- Se o lead veio da MIA (Morada AI), analise as informações de qualificação disponíveis
-- Se existem deals perdidos anteriores, analise por que foram perdidos e como abordar diferente desta vez
-- Inclua insights sobre o perfil do investidor baseado em TODAS as informações disponíveis
-- Se algum campo do lead estiver vazio, infere com base no contexto disponível
+- ANALISE PROFUNDAMENTE as anotações do deal — elas contêm dados valiosos da qualificação da MIA (Morada AI): tipo de imóvel, endereço, área, número de quartos, mobília, ar-condicionado, objetivo do investimento, orçamento, prazo, etc.
+- Se existem deals perdidos anteriores, analise POR QUE foram perdidos e COMO abordar diferente desta vez — isto é CRÍTICO para o closer
+- NÃO seja genérico: use o NOME do lead, o EMPREENDIMENTO específico, a CIDADE, o VALOR, e todos os dados disponíveis nas suas respostas
+- Se o email do lead sugere informações (domínio corporativo, números que indicam idade), USE essa informação
+- As PERGUNTAS SUGERIDAS devem ser personalizadas com o nome do lead e contexto específico (não perguntas genéricas de vendas)
+- As OPORTUNIDADES e RISCOS devem ser específicas para ESTE lead, não genéricas sobre investimento imobiliário
+- Se algum campo do lead estiver vazio, infere com base no contexto disponível (notas, email, telefone DDD, título do deal)
 - Responda EXCLUSIVAMENTE em JSON válido, sem markdown, sem backticks, sem texto antes ou depois do JSON, com esta estrutura exata:
 {
   "resumo": "Resumo executivo do lead em 2-3 frases",
@@ -85,10 +88,9 @@ INSTRUÇÕES IMPORTANTES:
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.7,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 3072,
           responseMimeType: 'application/json',
-          // Disable thinking to get clean JSON output without thought parts
-          thinkingConfig: { thinkingBudget: 0 },
+          thinkingConfig: { thinkingBudget: 1024 },
         },
       }),
     }
