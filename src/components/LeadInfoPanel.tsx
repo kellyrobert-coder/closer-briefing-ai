@@ -3,7 +3,7 @@ import type { SeazoneClientInfo } from '../lib/seazone-lookup';
 import { formatCurrency, formatDate, formatPhone } from '../lib/utils';
 import {
   User, Mail, Phone, MapPin, Building2, DollarSign,
-  Calendar, Briefcase, Heart, Flag, Activity,
+  Calendar, Briefcase, Activity, ExternalLink, Hash,
   MessageSquare, FileText, GitBranch, Star, Home, Loader2, UserCheck
 } from 'lucide-react';
 
@@ -63,8 +63,13 @@ export default function LeadInfoPanel({ lead, clienteSeazone, checkingCliente }:
           <InfoRow icon={<Mail className="w-4 h-4 text-blue-400" />} label="Email" value={lead.e_mail} />
           <InfoRow icon={<Phone className="w-4 h-4 text-emerald-400" />} label="Telefone" value={formatPhone(lead.telefone)} />
           <InfoRow icon={<Briefcase className="w-4 h-4 text-purple-400" />} label="Profissão" value={lead.profissao} />
-          <InfoRow icon={<Heart className="w-4 h-4 text-rose-400" />} label="Estado Civil" value={lead.estado_civil} />
-          <InfoRow icon={<Flag className="w-4 h-4 text-amber-400" />} label="Nacionalidade" value={lead.nacionalidade} />
+          <InfoRow icon={<Hash className="w-4 h-4 text-gray-400" />} label="Deal ID" value={String(lead.id)} />
+          <InfoRowLink
+            icon={<ExternalLink className="w-4 h-4 text-orange-400" />}
+            label="Pipedrive"
+            value="Abrir no Pipedrive"
+            href={`https://seazone2.pipedrive.com/deal/${lead.id}`}
+          />
         </div>
       </div>
 
@@ -145,6 +150,18 @@ function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string;
       {icon}
       <span className="text-xs text-gray-500 w-24 shrink-0">{label}</span>
       <span className="text-sm text-gray-300 truncate">{value || '—'}</span>
+    </div>
+  );
+}
+
+function InfoRowLink({ icon, label, value, href }: { icon: React.ReactNode; label: string; value: string; href: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      {icon}
+      <span className="text-xs text-gray-500 w-24 shrink-0">{label}</span>
+      <a href={href} target="_blank" rel="noopener noreferrer" className="text-sm text-orange-400 hover:text-orange-300 underline underline-offset-2 truncate">
+        {value}
+      </a>
     </div>
   );
 }

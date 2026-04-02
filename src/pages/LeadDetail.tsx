@@ -68,8 +68,17 @@ export default function LeadDetail() {
             }
           }
 
+          // Use allCustomFields to resolve enum values that dealToLead couldn't resolve
+          // "Cidade onde fica o imóvel" is an enum field — dealToLead returns the ID (e.g. "614")
+          const cf = allCustomFields as Record<string, string>;
+          const resolvedCidade = cf['Cidade onde fica o imóvel']
+            || cf['Cidade onde fica o Imóvel']
+            || cf['Cidade']
+            || data.cidade_onde_fica_o_imovel;
+
           setLead({
             ...data,
+            cidade_onde_fica_o_imovel: resolvedCidade,
             notesContent,
             lostDealsHistory,
             allCustomFields: Object.keys(allCustomFields).length > 0 ? allCustomFields : undefined,
