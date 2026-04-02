@@ -141,11 +141,15 @@ function str(val: unknown): string {
 function formatPhone(val: unknown): string {
   if (!val) return '';
   const s = String(val).trim();
-  // Already formatted (person phone)
+  // Already formatted with +
   if (s.startsWith('+')) return s;
   // Large numeric → add +
   const n = Number(s);
   if (!isNaN(n) && n > 10000000000) return '+' + String(Math.round(n));
+  // Normalize: ensure Brazilian phones have +55 prefix
+  const digits = s.replace(/\D/g, '');
+  if (digits.length === 10 || digits.length === 11) return '+55' + digits;
+  if (digits.length === 12 || digits.length === 13) return '+' + digits;
   return s;
 }
 
