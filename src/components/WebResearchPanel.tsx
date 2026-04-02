@@ -20,12 +20,27 @@ function PlatformIcon({ name }: { name: string }) {
 }
 
 function ConfidenceBadge({ level }: { level: string }) {
-  const l = level.toLowerCase();
-  if (l.startsWith('alto'))
-    return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">🟢 {level}</span>;
-  if (l.startsWith('méd') || l.startsWith('med'))
-    return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">🟡 {level}</span>;
-  return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-500/20 text-red-400 border border-red-500/30">🔴 {level}</span>;
+  // Split label from detail: "Médio-Baixo — DETALHAMENTO: long text..." → label + detail
+  const dashIdx = level.indexOf('—');
+  const label = dashIdx >= 0 ? level.slice(0, dashIdx).trim() : level.split(/\s*[-–]\s*/)[0] || level;
+  const detail = dashIdx >= 0 ? level.slice(dashIdx + 1).trim() : '';
+
+  const l = label.toLowerCase();
+  let badgeClass = 'bg-red-500/20 text-red-400 border-red-500/30';
+  let emoji = '🔴';
+  if (l.startsWith('alto')) { badgeClass = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'; emoji = '🟢'; }
+  else if (l.startsWith('méd') || l.startsWith('med')) { badgeClass = 'bg-amber-500/20 text-amber-400 border-amber-500/30'; emoji = '🟡'; }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${badgeClass} whitespace-nowrap`}>
+        {emoji} {label}
+      </span>
+      {detail && (
+        <p className="text-[11px] text-gray-500 leading-snug max-w-md text-right">{detail}</p>
+      )}
+    </div>
+  );
 }
 
 export default function WebResearchPanel({ lead }: Props) {
