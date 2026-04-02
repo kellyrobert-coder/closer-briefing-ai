@@ -235,3 +235,44 @@ export async function fetchDeal(id: number, apiToken: string): Promise<Lead> {
   if (!data.success) throw new Error('Pipedrive: ' + (data.error || 'Erro'));
   return dealToLead(data.data);
 }
+
+export interface UpcomingMeeting {
+  dealId: number;
+  nomeLead: string;
+  dataReuniao: string; // YYYY-MM-DD
+  horaReuniao: string; // HH:MM or ''
+}
+
+export async function fetchUpcomingMeetings(apiToken: string): Promise<UpcomingMeeting[]> {
+  const today = new Date().toISOString().split('T')[0];
+  // Fetch upcoming incomplete meeting activities starting from today
+  const url = `${BASE}/activities?type=meeting&done=0&start_date=${today}&limit=100&api_token=${apiToken}`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!data.success || !data.data) return [];
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const activities: any[] = data.data;
+
+  // Deduplicate by deal_id, keep earliest meeting per deal
+  const byDeal = new Map<number, UpcomingMeeting>();
+  for (const act of activities) {
+    if (!act.deal_id) continue;
+    const existing = byDeal.get(act.deal_id);
+    const date = act.due_date || '';
+    if (!existing || date < existing.dataReuniao) {
+      byDeal.set(act.deal_id, {
+        dealId: act.deal_id,
+        nomeLead: act.person_name || act.deal_title || `Deal #${act.deal_id}`,
+        dataReuniao: date,
+        horaReuniao: act.due_time || '',
+      });
+    }
+  }
+
+  // Sort by date ascending
+  return [...byDeal.values()].sort((a, b) =>
+    a.dataReuniao.localeCompare(b.dataReuniao)
+  );
+}

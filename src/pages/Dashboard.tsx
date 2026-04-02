@@ -1,18 +1,33 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Loader2, AlertCircle, Bot } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Loader2, AlertCircle, Bot, Calendar, Clock, ChevronRight } from 'lucide-react';
 import Header from '../components/Header';
 import LeadCard from '../components/LeadCard';
-import { searchDeals } from '../lib/pipedrive';
+import { searchDeals, fetchUpcomingMeetings } from '../lib/pipedrive';
+import type { UpcomingMeeting } from '../lib/pipedrive';
 import { getApiKeys } from '../lib/api-keys';
 import type { Lead } from '../types/lead';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searched, setSearched] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Upcoming meetings
+  const [meetings, setMeetings] = useState<UpcomingMeeting[]>([]);
+  const [meetingsLoading, setMeetingsLoading] = useState(true);
+
+  useEffect(() => {
+    const apiToken = getApiKeys().pipedrive;
+    if (!apiToken) { setMeetingsLoading(false); return; }
+    fetchUpcomingMeetings(apiToken)
+      .then(setMeetings)
+      .finally(() => setMeetingsLoading(false));
+  }, []);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -113,13 +128,70 @@ export default function Dashboard() {
           </>
         )}
 
-        {/* Empty state hint */}
+        {/* Upcoming meetings list */}
         {!query && (
-          <div className="text-center text-gray-600 text-sm mt-4">
-            Dados em tempo real via API do Pipedrive
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-3">
+              <Calendar className="w-4 h-4 text-orange-400" />
+              <h2 className="text-sm font-semibold text-gray-300 uppercase tracking-wider">
+                Reuniões Agendadas
+              </h2>
+              {!meetingsLoading && meetings.length > 0 && (
+                <span className="ml-auto text-xs text-gray-500">{meetings.length} reunião{meetings.length !== 1 ? 'ões' : ''}</span>
+              )}
+            </div>
+
+            {meetingsLoading ? (
+              <div className="flex items-center gap-2 text-gray-500 text-sm py-4">
+                <Loader2 className="w-4 h-4 animate-spin text-orange-400" />
+                Carregando reuniões...
+              </div>
+            ) : meetings.length === 0 ? (
+              <p className="text-gray-600 text-sm py-2">Nenhuma reunião agendada.</p>
+            ) : (
+              <div className="space-y-2">
+                {meetings.map((m) => (
+                  <button
+                    key={m.dealId}
+                    onClick={() => navigate(`/lead/${m.dealId}`)}
+                    className="w-full flex items-center gap-3 px-4 py-3 bg-gray-900 border border-gray-800 rounded-xl hover:border-orange-500/40 hover:bg-gray-800/80 transition-all text-left group"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center shrink-0">
+                      <Calendar className="w-4 h-4 text-orange-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{m.nomeLead}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Clock className="w-3 h-3 text-gray-500" />
+                        <span className="text-xs text-gray-400">
+                          {formatMeetingDate(m.dataReuniao)}
+                          {m.horaReuniao ? ` às ${m.horaReuniao.slice(0, 5)}` : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-600 group-hover:text-orange-400 transition-colors shrink-0" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </main>
     </div>
   );
+}
+
+function formatMeetingDate(dateStr: string): string {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-');
+  const date = new Date(Number(year), Number(month) - 1, Number(day));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  if (date.getTime() === today.getTime()) return 'Hoje';
+  if (date.getTime() === tomorrow.getTime()) return 'Amanhã';
+
+  return date.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' });
 }
